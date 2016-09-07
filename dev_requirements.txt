@@ -1,0 +1,7 @@
+sphinx
+pytest
+pytest-cov
+httpretty
+flake8
+mock
+requests_ntlm
