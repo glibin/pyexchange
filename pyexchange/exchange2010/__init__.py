@@ -19,10 +19,15 @@ from . import soap_request
 
 from lxml import etree
 from copy import deepcopy
+from collections import namedtuple
 from datetime import date
 import warnings
 
 log = logging.getLogger("pyexchange")
+
+
+NotificationSubscription = namedtuple('NotificationSubscription',
+                                      'id watermark')
 
 
 class Exchange2010Service(ExchangeServiceSOAP):
@@ -42,12 +47,16 @@ class Exchange2010Service(ExchangeServiceSOAP):
     def tasks(self, folder_id="tasks"):
         return Exchange2010TaskService(service=self, folder_id=folder_id)
 
+    def notifications(self):
+        return Exchange2010NotificationService(self)
+
     def convert_id(self, from_id, destination_format, format='EwsId',
                    mailbox='a@b.com'):
         body = soap_request.convert_id(from_id, destination_format,
                                        format, mailbox)
         response = self.send(body)
-        return response.xpath(u'//m:ConvertIdResponseMessage/m:AlternateId/@Id')
+        return response.xpath(u'//m:ConvertIdResponseMessage/m:AlternateId/@Id',
+                              namespaces=soap_request.NAMESPACES)
 
     def _send_soap_request(self, body, headers=None, retries=2, timeout=30, encoding="utf-8"):
         headers = {
@@ -1592,3 +1601,42 @@ class Exchange2010TaskItem(BaseExchangeTaskItem):
 
     def __repr__(self):
         return "<Exchange2010TaskItem: {}>".format(self.subject.encode('utf-8'))
+
+
+class Exchange2010NotificationService(object):
+    """
+    Handles all things related to notifications, push or pull,
+    subscriptions, etc.
+    """
+    def __init__(self, service):
+        self.service = service
+
+    def subscribe_push(self, folder_ids, event_types, url, status_freq=None):
+        body = soap_request.subscribe_push(folder_ids, event_types, url,
+                                           status_freq)
+        response = self.service.send(body)
+        sub_id = response.xpath('//m:SubscriptionId',
+                                namespaces=soap_request.NAMESPACES)[0]
+        watermark = response.xpath('//m:Watermark',
+                                   namespaces=soap_request.NAMESPACES)[0]
+        return NotificationSubscription(sub_id.text, watermark.text)
+
+    def parse_push_notification(self, body, encoding=None):
+        """
+        Process a raw push notification sent by Exchange.
+        :param str body: Bytestring containing the XML request.
+
+        Returns a dict containing a list of EWS item IDs for each event
+        type.
+        """
+        xml_body = etree.XML(body, encoding=encoding)
+        log.debug(etree.tostring(xml_body, pretty_print=True))
+
+        events = dict()
+        for event_type, xml_event_type in soap_request.NOTIFICATION_EVENT_TYPES:
+            events[event_type] = xml_body.xpath(
+                '//t:{}/t:ItemId/@Id'.format(xml_event_type),
+                namespaces=soap_request.NAMESPACES,
+            )
+
+        return events

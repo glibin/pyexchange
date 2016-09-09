@@ -28,10 +28,32 @@ DISTINGUISHED_IDS = (
     'Archiverecoverableitemsdeletions', 'Archiverecoverableitemsversions', 'Archiverecoverableitemspurges',
 )
 
+NOTIFICATION_EVENT_TYPES = {
+    'copied': 'CopiedEvent',
+    'created': 'CreatedEvent',
+    'deleted': 'DeletedEvent',
+    'modified': 'ModifiedEvent',
+    'moved': 'MovedEvent',
+    'new_mail': 'NewMailEvent',
+    # Apparently exchange does not recognize this event.
+    #'free_busy_changed': 'FreeBusyChangedEvent',
+}
+
 
 def exchange_header():
 
     return T.RequestServerVersion({u'Version': u'Exchange2010'})
+
+
+def folder_id_xml(folder_id):
+    """
+    Turn a single folder_id into the corresponding XML element, which is
+    either DistinguishedFolderId, or FolderId.
+    """
+    if folder_id in DISTINGUISHED_IDS:
+        return T.DistinguishedFolderId(Id=folder_id)
+    else:
+        return T.FolderId(Id=folder_id)
 
 
 def resource_node(element, resources):
@@ -178,14 +200,9 @@ def find_contact_items(folder_id, initial_name=None, final_name=None,
 
 
 def find_items(folder_id, query_string=None, format=u'Default'):
-    if folder_id in DISTINGUISHED_IDS:
-        parent_id = T.DistinguishedFolderId(Id=folder_id)
-    else:
-        parent_id = T.FolderId(Id=folder_id)
-
     root = M.FindItem(
         M.ItemShape(T.BaseShape(format)),
-        M.ParentFolderIds(parent_id),
+        M.ParentFolderIds(folder_id_xml(folder_id)),
         Traversal=u'Shallow',
     )
     if query_string:
@@ -346,15 +363,12 @@ def new_folder(folder):
 
 
 def find_folder(parent_id, format=u"Default"):
-
-    id = T.DistinguishedFolderId(Id=parent_id) if parent_id in DISTINGUISHED_IDS else T.FolderId(Id=parent_id)
-
     root = M.FindFolder(
         {u'Traversal': u'Shallow'},
         M.FolderShape(
             T.BaseShape(format)
         ),
-        M.ParentFolderIds(id)
+        M.ParentFolderIds(folder_id_xml(parent_id))
     )
     return root
 
@@ -718,3 +732,21 @@ def update_item(event, updated_attributes, calendar_item_update_operation_type):
             )
 
     return root
+
+
+def subscribe_push(folder_ids, event_types, url, status_freq=None):
+    folders = [folder_id_xml(folder) for folder in folder_ids]
+    if event_types == 'all':
+        event_types = NOTIFICATION_EVENT_TYPES.keys()
+    events = [T.EventType(NOTIFICATION_EVENT_TYPES[e]) for e in event_types]
+    if status_freq is None:
+        status_freq = 30
+
+    return M.Subscribe(
+        M.PushSubscriptionRequest(
+            T.FolderIds(*folders),
+            T.EventTypes(*events),
+            T.StatusFrequency(str(status_freq)),
+            T.URL(str(url)),
+        ),
+    )
