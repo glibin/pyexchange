@@ -1621,7 +1621,7 @@ class Exchange2010NotificationService(object):
                                    namespaces=soap_request.NAMESPACES)[0]
         return NotificationSubscription(sub_id.text, watermark.text)
 
-    def parse_push_notification(self, body, encoding=None):
+    def parse_push_notification(self, body):
         """
         Process a raw push notification sent by Exchange.
         :param str body: Bytestring containing the XML request.
@@ -1629,11 +1629,11 @@ class Exchange2010NotificationService(object):
         Returns a dict containing a list of EWS item IDs for each event
         type.
         """
-        xml_body = etree.XML(body, encoding=encoding)
+        xml_body = etree.XML(body)
         log.debug(etree.tostring(xml_body, pretty_print=True))
 
         events = dict()
-        for event_type, xml_event_type in soap_request.NOTIFICATION_EVENT_TYPES:
+        for event_type, xml_event_type in soap_request.NOTIFICATION_EVENT_TYPES.items():
             events[event_type] = xml_body.xpath(
                 '//t:{}/t:ItemId/@Id'.format(xml_event_type),
                 namespaces=soap_request.NAMESPACES,
