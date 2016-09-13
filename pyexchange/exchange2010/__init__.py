@@ -1097,6 +1097,14 @@ class Exchange2010ContactItem(BaseExchangeContactItem):
 
         self._update_properties(properties)
 
+        physical_addresses = []
+        xml_phys_addresses = xml.xpath(u'//t:PhysicalAddresses', namespaces=soap_request.NAMESPACES)
+
+        for xml_phys in xml_phys_addresses:
+            addr_props = self._parse_physical_addresses(xml_phys)
+            physical_addresses.append(addr_props)
+        self.physical_addresses = physical_addresses
+
         return self
 
     def _parse_contact_properties(self, response):
@@ -1160,6 +1168,31 @@ class Exchange2010ContactItem(BaseExchangeContactItem):
         }
         return self.service._xpath_to_dict(
             element=response, property_map=property_map,
+            namespace_map=soap_request.NAMESPACES,
+        )
+
+    def _parse_physical_addresses(self, xml):
+        # Use relative selectors here so that we can call this in the
+        # context of each Contact element without deepcopying.
+        property_map = {
+            u'street': {
+                u'xpath': u'descendant-or-self::t:Street',
+            },
+            u'city': {
+                u'xpath': u'descendant-or-self::t:City',
+            },
+            u'state': {
+                u'xpath': u'descendant-or-self::t:State',
+            },
+            u'country_or_region': {
+                u'xpath': u'descendant-or-self::t:CountryOrRegion',
+            },
+            u'postal_code': {
+                u'xpath': u'descendant-or-self::t:PostalCode',
+            },
+        }
+        return self.service._xpath_to_dict(
+            element=xml, property_map=property_map,
             namespace_map=soap_request.NAMESPACES,
         )
 
@@ -1620,6 +1653,8 @@ class Exchange2010NotificationService(object):
         watermark = response.xpath('//m:Watermark',
                                    namespaces=soap_request.NAMESPACES)[0]
         return NotificationSubscription(sub_id.text, watermark.text)
+
+    #TODO: implement UNSUBSCRIBE
 
     def parse_push_notification(self, body):
         """
