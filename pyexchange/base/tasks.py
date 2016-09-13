@@ -22,6 +22,7 @@ class BaseExchangeTaskItem(object):
 
     subject = None
     body = None
+    html_body = None
     categories = None
     is_draft = None
     sent_at = None

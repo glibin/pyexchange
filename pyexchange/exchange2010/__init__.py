@@ -1518,6 +1518,36 @@ class Exchange2010TaskList(object):
             xml_result = self.service.send(body)
 
         self._parse_response_for_all_tasks(xml_result)
+        self.load_extended_properties()
+
+    def load_extended_properties(self):
+        """
+        loads additional task info via soap
+        if there are no items, nothing is done (empty items would cause soap error 500)
+        """
+        if self.items:
+            body = soap_request.get_item([i.id for i in self.items], format=u'AllProperties')
+            logging.info(etree.tostring(body))
+            xml_result = self.service.send(body)
+
+            self._parse_response_for_extended_properties(xml_result)
+
+    def _parse_response_for_extended_properties(self, xml):
+        tasks = xml.xpath(u'//t:Task',
+                          namespaces=soap_request.NAMESPACES)
+        tasks_dict = {}
+        for t in self.items:
+            tasks_dict[t._id] = t
+
+        if not tasks:
+            log.debug(u'No tasks extended properties returned.')
+            return
+
+        for task_xml in tasks:
+            id = task_xml.xpath(u'descendant-or-self::t:Task/t:ItemId/@Id',
+                                namespaces=soap_request.NAMESPACES)
+            task = tasks_dict[id[0]]
+            task._init_from_xml(task_xml)
 
     def _parse_response_for_all_tasks(self, xml):
         tasks = xml.xpath(u'//t:Items/t:Task',
@@ -1577,6 +1607,9 @@ class Exchange2010TaskItem(BaseExchangeTaskItem):
             },
             u'body': {
                 u'xpath': u'descendant-or-self::t:Task/t:Body[@BodyType=\'Text\']',
+            },
+            u'html_body': {
+                u'xpath': u'descendant-or-self::t:Task/t:Body[@BodyType=\'HTML\']',
             },
             u'categories': {
                 u'xpath': u'descendant-or-self::t:Task/t:Categories/t:String',
