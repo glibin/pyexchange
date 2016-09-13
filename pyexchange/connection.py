@@ -61,7 +61,7 @@ class ExchangeNTLMAuthConnection(ExchangeBaseConnection):
             self.session = self.build_session()
 
         try:
-            response = self.session.post(self.url, data=body, headers=headers, verify = self.verify_certificate)
+            response = self.session.post(self.url, data=body, headers=headers, verify=self.verify_certificate)
             response.raise_for_status()
         except requests.exceptions.RequestException as err:
             log.debug(err.response.content)
