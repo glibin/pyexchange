@@ -1678,6 +1678,7 @@ class Exchange2010NotificationService(object):
         self.service = service
 
     def subscribe_push(self, folder_ids, event_types, url, status_freq=None):
+        # notify_svc.subscribe_push("Calendar", event_types='all', url="http://url.com", status_freq=1440)
         body = soap_request.subscribe_push(folder_ids, event_types, url,
                                            status_freq)
         response = self.service.send(body)
@@ -1699,12 +1700,25 @@ class Exchange2010NotificationService(object):
         """
         xml_body = etree.XML(body)
         log.debug(etree.tostring(xml_body, pretty_print=True))
-
         events = dict()
         for event_type, xml_event_type in soap_request.NOTIFICATION_EVENT_TYPES.items():
-            events[event_type] = xml_body.xpath(
-                '//t:{}/t:ItemId/@Id'.format(xml_event_type),
-                namespaces=soap_request.NAMESPACES,
-            )
-
+            if event_type == 'moved':
+                if xml_body.xpath('//t:MovedEvent', namespaces=soap_request.NAMESPACES):
+                    events['moved'] = {
+                        'item_id': xml_body.xpath('//t:MovedEvent/t:ItemId/@Id',
+                                                  namespaces=soap_request.NAMESPACES),
+                        'old_item_id': xml_body.xpath('//t:MovedEvent/t:OldItemId/@Id',
+                                                      namespaces=soap_request.NAMESPACES),
+                        'parent_folder': xml_body.xpath('//t:MovedEvent/t:ParentFolderId/@Id',
+                                                        namespaces=soap_request.NAMESPACES),
+                        'old_parent_folder': xml_body.xpath('//t:MovedEvent/t:OldParentFolderId/@Id',
+                                                            namespaces=soap_request.NAMESPACES),
+                        }
+                else:
+                    events['moved'] = []
+            else:
+                events[event_type] = xml_body.xpath(
+                    '//t:{}/t:ItemId/@Id'.format(xml_event_type),
+                    namespaces=soap_request.NAMESPACES,
+                )
         return events
