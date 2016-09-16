@@ -1201,6 +1201,9 @@ class Exchange2010ContactItem(BaseExchangeContactItem):
 
 
 class Exchange2010MailService(BaseExchangeMailService):
+    def get_mail(self, id):
+        return Exchange2010MailItem(service=self.service, id=id)
+
     def list_mails(self):
         return Exchange2010MailList(service=self.service, folder_id=self.folder_id)
 
