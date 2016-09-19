@@ -1680,7 +1680,7 @@ class Exchange2010NotificationService(object):
     def __init__(self, service):
         self.service = service
 
-    def subscribe_push(self, folder_ids, event_types, url, status_freq=None):
+    def subscribe_push(self, folder_ids, event_types, url, status_freq=None, watermark=None):
         # notify_svc.subscribe_push("Calendar", event_types='all', url="http://url.com", status_freq=1440)
         body = soap_request.subscribe_push(folder_ids, event_types, url,
                                            status_freq)

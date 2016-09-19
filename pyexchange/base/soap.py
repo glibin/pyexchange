@@ -28,20 +28,20 @@ class ExchangeServiceSOAP(object):
     def __init__(self, connection):
         self.connection = connection
 
-    def send(self, xml, headers=None, retries=4, timeout=30, encoding="utf-8"):
+    def send(self, xml, headers=None, retries=4, timeout=30, encoding="utf-8", check_for_errors=True):
         request_xml = self._wrap_soap_xml_request(xml)
         log.info(etree.tostring(request_xml, encoding=encoding, pretty_print=True))
         response = self._send_soap_request(request_xml, headers=headers, retries=retries, timeout=timeout, encoding=encoding)
-        return self._parse(response, encoding=encoding)
+        return self._parse(response, encoding=encoding, check_for_errors=check_for_errors)
 
-    def _parse(self, response, encoding="utf-8"):
+    def _parse(self, response, encoding="utf-8", check_for_errors=True):
 
         try:
             tree = etree.XML(response.encode(encoding))
         except (etree.XMLSyntaxError, TypeError) as err:
             raise FailedExchangeException(u"Unable to parse response from Exchange - check your login information. Error: %s" % err)
-
-        self._check_for_errors(tree)
+        if check_for_errors:
+            self._check_for_errors(tree)
 
         log.info(etree.tostring(tree, encoding=encoding, pretty_print=True))
         return tree

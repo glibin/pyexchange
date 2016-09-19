@@ -750,3 +750,9 @@ def subscribe_push(folder_ids, event_types, url, status_freq=None):
             T.URL(str(url)),
         ),
     )
+
+
+def unsubscribe_subscription_id(push_id):
+    return M.Unsubscribe(
+        M.SubscriptionId(push_id)
+    )
