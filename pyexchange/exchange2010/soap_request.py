@@ -199,12 +199,20 @@ def find_contact_items(folder_id, initial_name=None, final_name=None,
     return root
 
 
-def find_items(folder_id, query_string=None, format=u'Default'):
+def find_items(folder_id, query_string=None, format=u'Default',
+               limit=None, offset=0):
     root = M.FindItem(
         M.ItemShape(T.BaseShape(format)),
-        M.ParentFolderIds(folder_id_xml(folder_id)),
         Traversal=u'Shallow',
     )
+    if limit or offset:
+        limit = limit or 1000  # the default in Exchange, apparently
+        root.append(M.IndexedPageItemView(
+            MaxEntriesReturned=str(limit),
+            Offset=str(offset),
+            BasePoint='Beginning',
+        ))
+    root.append(M.ParentFolderIds(folder_id_xml(folder_id)))
     if query_string:
         root.append(M.QueryString(query_string))
 

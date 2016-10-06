@@ -31,6 +31,10 @@ NotificationSubscription = namedtuple('NotificationSubscription',
 
 
 class Exchange2010Service(ExchangeServiceSOAP):
+    def __init__(self, connection, batch_size=1000):
+        super(Exchange2010Service, self).__init__(connection)
+        # The size of batches requested for paginated result sets.
+        self.batch_size = batch_size
 
     def calendar(self, id="calendar"):
         return Exchange2010CalendarService(service=self, calendar_id=id)
@@ -1505,41 +1509,80 @@ class Exchange2010TaskService(BaseExchangeTaskService):
 
 class Exchange2010TaskList(object):
     """
-    Creates & Stores a list of Exchange2010ContactItem objects in the
-    "self.items" variable.
+    Creates an iterator over a list of Exchange2010TaskItem objects in
+    "self.items".
     """
     def __init__(self, service, folder_id=None, xml_result=None):
         self.service = service
         self.folder_id = folder_id
-        self.count = 0
-        self.items = []
+        self.count = None
+        self._items = None
 
-        if xml_result is None:
-            # Fetch all contacts for a folder.
-            body = soap_request.find_items(folder_id=folder_id,
-                                           format=u'AllProperties')
+        if xml_result is not None:
+            self._items = self._parse_response_for_all_tasks(xml_result)
+            self.load_extended_properties(self._items)
+            self.count = len(self._items)
+
+    @property
+    def items(self):
+        """
+        Iterable of task items. If the list has been initialized with a
+        pre-fetched XML response, this just iterates over self._items,
+        otherwise it's a generator that fetches batches of tasks from
+        Exchange on demand.
+        """
+        if self._items is not None:
+            for item in self._item:
+                yield item
+            return
+
+        offset = 0
+        while True:
+            body = soap_request.find_items(
+                folder_id=self.folder_id, format=u'IdOnly',
+                limit=self.service.batch_size, offset=offset,
+            )
             xml_result = self.service.send(body)
+            last_batch = "true" == xml_result.xpath(
+                '//m:RootFolder/@IncludesLastItemInRange',
+                namespaces=soap_request.NAMESPACES,
+            )[0]
+            self.count = int(xml_result.xpath(
+                '//m:RootFolder/@TotalItemsInView',
+                namespaces=soap_request.NAMESPACES,
+            )[0])
+            offset = int(xml_result.xpath(
+                '//m:RootFolder/@IndexedPagingOffset',
+                namespaces=soap_request.NAMESPACES,
+            )[0])
 
-        self._parse_response_for_all_tasks(xml_result)
-        self.load_extended_properties()
+            batch = self._parse_response_for_all_tasks(xml_result)
+            self.load_extended_properties(batch)
 
-    def load_extended_properties(self):
+            for t in batch:
+                yield t
+
+            if last_batch:
+                return
+
+    def load_extended_properties(self, items):
         """
         loads additional task info via soap
         if there are no items, nothing is done (empty items would cause soap error 500)
         """
-        if self.items:
-            body = soap_request.get_item([i.id for i in self.items], format=u'AllProperties')
+        if items:
+            body = soap_request.get_item([i.id for i in items],
+                                         format=u'AllProperties')
             logging.info(etree.tostring(body))
             xml_result = self.service.send(body)
 
-            self._parse_response_for_extended_properties(xml_result)
+            self._parse_response_for_extended_properties(items, xml_result)
 
-    def _parse_response_for_extended_properties(self, xml):
+    def _parse_response_for_extended_properties(self, items, xml):
         tasks = xml.xpath(u'//t:Task',
                           namespaces=soap_request.NAMESPACES)
         tasks_dict = {}
-        for t in self.items:
+        for t in items:
             tasks_dict[t._id] = t
 
         if not tasks:
@@ -1557,9 +1600,9 @@ class Exchange2010TaskList(object):
                           namespaces=soap_request.NAMESPACES)
         if not tasks:
             log.debug(u'No tasks returned.')
-            return
+            return []
 
-        self.count = len(tasks)
+        items = []
         for task_xml in tasks:
             log.debug(u'Adding task item to task list...')
             task = Exchange2010TaskItem(service=self.service,
@@ -1567,11 +1610,15 @@ class Exchange2010TaskList(object):
                                         xml=task_xml)
             log.debug(u'Added task with id %s and subject %s.',
                       task.id, task.subject)
-            self.items.append(task)
+            items.append(task)
+
+        return items
 
     def __repr__(self):
+        if self._items is None:
+            return "<Exchange2010TaskList: lazy for folder {!r}>".format(self.folder_id)
         return "<Exchange2010TaskList: [{}]>".format(
-            ', '.join(repr(item) for item in self.items),
+            ', '.join(repr(item) for item in self._items),
         )
 
 
