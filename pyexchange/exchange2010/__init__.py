@@ -1555,9 +1555,11 @@ class Exchange2010MailItem(BaseExchangeMailItem):
         attachments = []
         recipients_to = []
         recipients_cc = []
-        xml_attachments = xml.xpath(u'//t:FileAttachment', namespaces=soap_request.NAMESPACES)
-        xml_to_recipients = xml.xpath(u'//t:ToRecipients/t:Mailbox', namespaces=soap_request.NAMESPACES)
-        xml_cc_recipients = xml.xpath(u'//t:CcRecipients/t:Mailbox', namespaces=soap_request.NAMESPACES)
+        # These need to be ./ or descendant::, otherwise they'll select
+        # all matching nodes in the entire XML document.
+        xml_attachments = xml.xpath(u'.//t:FileAttachment', namespaces=soap_request.NAMESPACES)
+        xml_to_recipients = xml.xpath(u'.//t:ToRecipients/t:Mailbox', namespaces=soap_request.NAMESPACES)
+        xml_cc_recipients = xml.xpath(u'.//t:CcRecipients/t:Mailbox', namespaces=soap_request.NAMESPACES)
         for to_r in xml_to_recipients:
             to_r_props = self._parse_recipient(to_r)
             recipients_to.append(to_r_props)
