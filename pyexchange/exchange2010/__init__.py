@@ -1052,25 +1052,62 @@ class Exchange2010ContactList(object):
     def __init__(self, service, folder_id=None, xml_result=None):
         self.service = service
         self.folder_id = folder_id
-        self.count = 0
-        self.items = []
+        self.count = None
+        self._items = None
 
-        if xml_result is None:
-            # Fetch all contacts for a folder.
-            body = soap_request.find_items(folder_id=folder_id,
-                                           format=u'AllProperties')
+        if xml_result is not None:
+            self._items = self._parse_response_for_all_contacts(xml_result)
+            self.count = len(self._items)
+
+    @property
+    def items(self):
+        """
+        Iterable of contact items. If the list has been initialized with a
+        pre-fetched XML response, this just iterates over self._items,
+        otherwise it's a generator that fetches batches of contacts from
+        Exchange on demand.
+        """
+        if self._items is not None:
+            for item in self._item:
+                yield item
+            return
+
+        offset = 0
+        while True:
+            body = soap_request.find_items(
+                folder_id=self.folder_id, format=u'AllProperties',
+                limit=self.service.batch_size, offset=offset,
+            )
             xml_result = self.service.send(body)
+            last_batch = "true" == xml_result.xpath(
+                '//m:RootFolder/@IncludesLastItemInRange',
+                namespaces=soap_request.NAMESPACES,
+            )[0]
+            self.count = int(xml_result.xpath(
+                '//m:RootFolder/@TotalItemsInView',
+                namespaces=soap_request.NAMESPACES,
+            )[0])
+            offset = int(xml_result.xpath(
+                '//m:RootFolder/@IndexedPagingOffset',
+                namespaces=soap_request.NAMESPACES,
+            )[0])
 
-        self._parse_response_for_all_contacts(xml_result)
+            batch = self._parse_response_for_all_contacts(xml_result)
+
+            for t in batch:
+                yield t
+
+            if last_batch:
+                return
 
     def _parse_response_for_all_contacts(self, xml):
         contacts = xml.xpath(u'//t:Items/t:Contact',
                              namespaces=soap_request.NAMESPACES)
         if not contacts:
             log.debug(u'No contacts returned.')
-            return
+            return []
 
-        self.count = len(contacts)
+        items = []
         for contact_xml in contacts:
             log.debug(u'Adding contact item to contact list...')
             contact = Exchange2010ContactItem(service=self.service,
@@ -1078,9 +1115,13 @@ class Exchange2010ContactList(object):
                                               xml=contact_xml)
             log.debug(u'Added contact with id %s and display name %s.',
                       contact.id, contact.display_name)
-            self.items.append(contact)
+            items.append(contact)
+
+        return items
 
     def __repr__(self):
+        if self._items is None:
+            return "<Exchange2010ContactList: lazy for folder {!r}>".format(self.folder_id)
         return "<Exchange2010ContactList: [{}]>".format(
             ', '.join(repr(item) for item in self.items),
         )
