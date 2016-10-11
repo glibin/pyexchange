@@ -1289,34 +1289,74 @@ class Exchange2010MailService(BaseExchangeMailService):
 class Exchange2010MailList(object):
     def __init__(self, service=None, folder_id=u'inbox', xml_result=None):
         self.service = service
-        self.mail_folder_id = folder_id
-        self.items = []
+        self.folder_id = folder_id
+        self._items = None
+        self.count = None
 
-        if xml_result is None:
-            # Fetch all contacts for a folder.
-            body = soap_request.find_items(folder_id=folder_id,
-                                           format=u'AllProperties')
+        if xml_result is not None:
+            self._items = self._parse_response_for_all_mails(xml_result)
+            self.load_extended_properties(self._items)
+            self.count = len(self._items)
+
+    @property
+    def items(self):
+        """
+        Iterable of email messages. If the list has been initialized with
+        a pre-fetched XML response, this just iterates over self._items,
+        otherwise it's a generator that fetches batches of messages from
+        Exchange on demand.
+        """
+        if self._items is not None:
+            for item in self._item:
+                yield item
+            return
+
+        offset = 0
+        while True:
+            body = soap_request.find_items(
+                folder_id=self.folder_id, limit=self.service.batch_size,
+                offset=offset,
+            )
             xml_result = self.service.send(body)
+            last_batch = "true" == xml_result.xpath(
+                '//m:RootFolder/@IncludesLastItemInRange',
+                namespaces=soap_request.NAMESPACES,
+            )[0]
+            self.count = int(xml_result.xpath(
+                '//m:RootFolder/@TotalItemsInView',
+                namespaces=soap_request.NAMESPACES,
+            )[0])
+            offset = int(xml_result.xpath(
+                '//m:RootFolder/@IndexedPagingOffset',
+                namespaces=soap_request.NAMESPACES,
+            )[0])
 
-        self._parse_response_for_all_mails(xml_result)
+            batch = self._parse_response_for_all_mails(xml_result)
+            self.load_extended_properties(batch)
 
-    def load_extended_properties(self):
+            for t in batch:
+                yield t
+
+            if last_batch:
+                return
+
+    def load_extended_properties(self, items):
         """
         loads additional mail info via soap
         if there are no items, nothing is done (empty items would cause soap error 500)
         """
-        if self.items:
-            body = soap_request.get_mail_items(self.items)
+        if items:
+            body = soap_request.get_mail_items(items)
             logging.info(etree.tostring(body))
             xml_result = self.service.send(body)
 
-            self._parse_response_for_extended_properties(xml_result)
+            self._parse_response_for_extended_properties(items, xml_result)
 
-    def _parse_response_for_extended_properties(self, xml):
+    def _parse_response_for_extended_properties(self, items, xml):
         mails = xml.xpath(u'//t:Message',
                           namespaces=soap_request.NAMESPACES)
         mail_dict = {}
-        for m in self.items:
+        for m in items:
             mail_dict[m._id] = m
 
         if not mails:
@@ -1334,17 +1374,19 @@ class Exchange2010MailList(object):
                           namespaces=soap_request.NAMESPACES)
         if not mails:
             log.debug(u'No mails returned.')
-            return
+            return []
 
-        self.count = len(mails)
+        items = []
         for mail_xml in mails:
-            log.debug(u'Adding contact item to contact list...')
+            log.debug(u'Adding message to mailbox...')
             mail = Exchange2010MailItem(service=self.service,
-                                        folder_id=self.mail_folder_id,
+                                        folder_id=self.folder_id,
                                         xml=mail_xml)
             log.debug(u'Added mail with id %s and subject %s.',
                       mail.id, mail.subject)
-            self.items.append(mail)
+            items.append(mail)
+
+        return items
 
 
 class Exchange2010MailItem(BaseExchangeMailItem):
