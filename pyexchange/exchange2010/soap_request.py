@@ -152,7 +152,9 @@ def get_item(exchange_id, format=u"Default"):
     )
     return root
 
-def get_calendar_items(format=u"Default", calendar_id=u'calendar', start=None, end=None, max_entries=999999, delegate_for=None):
+def get_calendar_items(format=u"Default", calendar_id=u'calendar',
+                       start=None, end=None, max_entries=1000,
+                       delegate_for=None):
     start = start.strftime(EXCHANGE_DATETIME_FORMAT)
     end = end.strftime(EXCHANGE_DATETIME_FORMAT)
 

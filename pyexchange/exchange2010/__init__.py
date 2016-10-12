@@ -145,11 +145,25 @@ class Exchange2010CalendarEventList(object):
         self.event_ids = list()
         self.details = details
         self.delegate_for = delegate_for
+        self.total_items_in_view = None
+        self.contains_all_items = None
 
         # This request uses a Calendar-specific query between two dates.
-        body = soap_request.get_calendar_items(format=u'AllProperties', calendar_id=calendar_id, start=self.start, end=self.end, delegate_for=self.delegate_for)
+        body = soap_request.get_calendar_items(
+            format=u'AllProperties', calendar_id=calendar_id,
+            start=self.start, end=self.end, delegate_for=self.delegate_for,
+            max_entries=1000,
+        )
         response_xml = self.service.send(body)
         self._parse_response_for_all_events(response_xml)
+        self.contains_all_items = "true" == response_xml.xpath(
+            '//m:RootFolder/@IncludesLastItemInRange',
+            namespaces=soap_request.NAMESPACES,
+        )[0]
+        self.total_items_in_view = int(response_xml.xpath(
+            '//m:RootFolder/@TotalItemsInView',
+            namespaces=soap_request.NAMESPACES,
+        )[0])
 
         # Populate the event ID list, for convenience reasons.
         for event in self.events:
