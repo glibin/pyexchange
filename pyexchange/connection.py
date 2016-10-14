@@ -64,7 +64,7 @@ class ExchangeNTLMAuthConnection(ExchangeBaseConnection):
             response = self.session.post(self.url, data=body, headers=headers, verify=self.verify_certificate)
             response.raise_for_status()
         except requests.exceptions.RequestException as err:
-            log.debug(err.response.content)
+            log.debug(getattr(err.response, 'content', 'No response.'))
             raise FailedExchangeException(u'Unable to connect to Exchange: %s' % err)
 
         log.info(u'Got response: {code}'.format(code=response.status_code))
