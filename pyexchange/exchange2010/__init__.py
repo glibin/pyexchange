@@ -566,62 +566,50 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
         property_map = {
             u'subject': {
                 u'xpath': u'//m:Items/t:CalendarItem/t:Subject',
-                },
-            u'location':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:Location',
-                    },
-            u'availability':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:LegacyFreeBusyStatus',
-                    },
-            u'start':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:Start',
-                    u'cast': u'datetime',
-                    },
-            u'end':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:End',
-                    u'cast': u'datetime',
-                    },
-            u'html_body':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:Body[@BodyType="HTML"]',
-                    },
-            u'text_body':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:Body[@BodyType="Text"]',
-                    },
-            u'_type':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:CalendarItemType',
-                    },
-            u'reminder_minutes_before_start':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:ReminderMinutesBeforeStart',
-                    u'cast': u'int',
-                    },
-            u'is_all_day':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:IsAllDayEvent',
-                    u'cast': u'bool',
-                    },
-            u'recurrence_end_date':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:Recurrence/t:EndDateRecurrence/t:EndDate',
-                    u'cast': u'date_only_naive',
-                    },
-            u'recurrence_interval':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:Recurrence/*/t:Interval',
-                    u'cast': u'int',
-                    },
-            u'recurrence_days':
-                {
-                    u'xpath': u'//m:Items/t:CalendarItem/t:Recurrence/t:WeeklyRecurrence/t:DaysOfWeek',
-                    },
-            }
+            },
+            u'location': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:Location',
+            },
+            u'availability': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:LegacyFreeBusyStatus',
+            },
+            u'start': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:Start',
+                u'cast': u'datetime',
+            },
+            u'end': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:End',
+                u'cast': u'datetime',
+            },
+            u'html_body': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:Body[@BodyType="HTML"]',
+            },
+            u'text_body': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:Body[@BodyType="Text"]',
+            },
+            u'_type': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:CalendarItemType',
+            },
+            u'reminder_minutes_before_start': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:ReminderMinutesBeforeStart',
+                u'cast': u'int',
+            },
+            u'is_all_day': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:IsAllDayEvent',
+                u'cast': u'bool',
+            },
+            u'recurrence_end_date': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:Recurrence/t:EndDateRecurrence/t:EndDate',
+                u'cast': u'date_only_naive',
+            },
+            u'recurrence_interval': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:Recurrence/*/t:Interval',
+                u'cast': u'int',
+            },
+            u'recurrence_days': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:Recurrence/t:WeeklyRecurrence/t:DaysOfWeek',
+            },
+        }
 
         result = self.service._xpath_to_dict(element=response, property_map=property_map, namespace_map=soap_request.NAMESPACES)
 
@@ -651,15 +639,13 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
         organizer = response.xpath(u'//m:Items/t:CalendarItem/t:Organizer/t:Mailbox', namespaces=soap_request.NAMESPACES)
 
         property_map = {
-            u'name':
-                {
-                    u'xpath': u't:Name'
-                },
-            u'email':
-                {
-                    u'xpath': u't:EmailAddress'
-                },
-            }
+            u'name': {
+                u'xpath': u't:Name'
+            },
+            u'email': {
+                u'xpath': u't:EmailAddress'
+            },
+        }
 
         if organizer:
             return self.service._xpath_to_dict(element=organizer[0], property_map=property_map, namespace_map=soap_request.NAMESPACES)
@@ -668,24 +654,20 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
 
     def _parse_event_resources(self, response):
         property_map = {
-            u'name':
-                {
-                    u'xpath': u't:Mailbox/t:Name'
-                },
-            u'email':
-                {
-                    u'xpath': u't:Mailbox/t:EmailAddress'
-                },
-            u'response':
-                {
-                    u'xpath': u't:ResponseType'
-                },
-            u'last_response':
-                {
-                    u'xpath': u't:LastResponseTime',
-                    u'cast': u'datetime'
-                },
-            }
+            u'name': {
+                u'xpath': u't:Mailbox/t:Name'
+            },
+            u'email': {
+                u'xpath': u't:Mailbox/t:EmailAddress'
+            },
+            u'response': {
+                u'xpath': u't:ResponseType'
+            },
+            u'last_response': {
+                u'xpath': u't:LastResponseTime',
+                u'cast': u'datetime'
+            },
+        }
 
         result = []
 
@@ -706,24 +688,20 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
     def _parse_event_attendees(self, response):
 
         property_map = {
-            u'name':
-                {
-                    u'xpath': u't:Mailbox/t:Name'
-                },
-            u'email':
-                {
-                    u'xpath': u't:Mailbox/t:EmailAddress'
-                },
-            u'response':
-                {
-                    u'xpath': u't:ResponseType'
-                },
-            u'last_response':
-                {
-                    u'xpath': u't:LastResponseTime',
-                    u'cast': u'datetime'
-                },
-            }
+            u'name': {
+                u'xpath': u't:Mailbox/t:Name'
+            },
+            u'email': {
+                u'xpath': u't:Mailbox/t:EmailAddress'
+            },
+            u'response': {
+                u'xpath': u't:ResponseType'
+            },
+            u'last_response': {
+                u'xpath': u't:LastResponseTime',
+                u'cast': u'datetime'
+            },
+        }
 
         result = []
 
