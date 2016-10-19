@@ -4,6 +4,7 @@ Licensed under the Apache License, Version 2.0 (the "License");?you may not use 
 
 Unless required by applicable law or agreed to in writing, software?distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 """
+from __future__ import unicode_literals
 
 import logging
 from ..base.calendar import BaseExchangeCalendarEvent, BaseExchangeCalendarService, ExchangeEventOrganizer, ExchangeEventResponse
@@ -777,12 +778,13 @@ class Exchange2010FolderService(BaseExchangeFolderService):
 
         return Exchange2010Folder(service=self.service, **properties)
 
-    def find_folder(self, parent_id):
+    def find_folder(self, parent_id, traversal='Shallow'):
         """
           find_folder(parent_id)
           :param str parent_id:  The parent folder to list.
 
-          This method will return a list of sub-folders to a given parent folder.
+          This method will return a generator of sub-folders to a given
+          parent folder.
 
           **Examples**::
 
@@ -796,13 +798,27 @@ class Exchange2010FolderService(BaseExchangeFolderService):
             for folder in folders:
               folder.delete()
         """
+        offset = 0
+        last_batch = False
 
-        body = soap_request.find_folder(parent_id=parent_id, format=u'AllProperties')
-        response_xml = self.service.send(body)
-        return self._parse_response_for_find_folder(response_xml)
-
-    def list_folders(self, folder_type=u'all'):
-        return Exchange2010FolderList(service=self.service, folder_type=folder_type)
+        while not last_batch:
+            body = soap_request.find_folder(
+                parent_id=parent_id, format=u'AllProperties',
+                traversal=traversal, limit=self.service.batch_size,
+                offset=offset,
+            )
+            xml_result = self.service.send(body)
+            last_batch = "true" == xml_result.xpath(
+                '//m:RootFolder/@IncludesLastItemInRange',
+                namespaces=soap_request.NAMESPACES,
+            )[0]
+            offset = int(xml_result.xpath(
+                '//m:RootFolder/@IndexedPagingOffset',
+                namespaces=soap_request.NAMESPACES,
+            )[0])
+            batch = self._parse_response_for_find_folder(xml_result)
+            for f in batch:
+                yield f
 
     def _parse_response_for_find_folder(self, response):
 
@@ -902,27 +918,48 @@ class Exchange2010Folder(BaseExchangeFolder):
         return self
 
     def _parse_response_for_get_folder(self, response):
-        FOLDER_PATH = u'//t:Folder | //t:CalendarFolder | //t:ContactsFolder | //t:SearchFolder | //t:TasksFolder'
-
-        path = response.xpath(FOLDER_PATH, namespaces=soap_request.NAMESPACES)[0]
+        folder_xpath = '|'.join('descendant-or-self::t:%s' % t
+                                for t in self.FOLDER_TYPES)
+        path = response.xpath(folder_xpath, namespaces=soap_request.NAMESPACES)[0]
         result = self._parse_folder_properties(path)
         return result
 
     def _parse_folder_properties(self, response):
 
         property_map = {
-            u'display_name': {u'xpath': u't:DisplayName'},
-            }
+            'folder_class': {
+                'xpath': 't:FolderClass',
+            },
+            'display_name': {
+                'xpath': 't:DisplayName',
+            },
+            'total_count': {
+                'xpath': 't:TotalCount',
+                'cast': 'int',
+            },
+            'child_folder_count': {
+                'xpath': 't:ChildFolderCount',
+                'cast': 'int',
+            },
+            'unread_count': {
+                'xpath': 't:UnreadCount',
+                'cast': 'int',
+            },
+        }
 
         self._id, self._change_key = self._parse_id_and_change_key_from_response(response)
         self._parent_id = self._parse_parent_id_and_change_key_from_response(response)[0]
         self.folder_type = etree.QName(response).localname
 
-        return self.service._xpath_to_dict(element=response, property_map=property_map, namespace_map=soap_request.NAMESPACES)
+        return self.service._xpath_to_dict(
+            element=response, property_map=property_map,
+            namespace_map=soap_request.NAMESPACES
+        )
 
     def _parse_id_and_change_key_from_response(self, response):
 
-        id_elements = response.xpath(u'//t:FolderId', namespaces=soap_request.NAMESPACES)
+        id_elements = response.xpath('t:FolderId',
+                                     namespaces=soap_request.NAMESPACES)
 
         if id_elements:
             id_element = id_elements[0]
@@ -932,79 +969,14 @@ class Exchange2010Folder(BaseExchangeFolder):
 
     def _parse_parent_id_and_change_key_from_response(self, response):
 
-        id_elements = response.xpath(u'//t:ParentFolderId', namespaces=soap_request.NAMESPACES)
+        id_elements = response.xpath('t:ParentFolderId',
+                                     namespaces=soap_request.NAMESPACES)
 
         if id_elements:
             id_element = id_elements[0]
             return id_element.get(u"Id", None), id_element.get(u"ChangeKey", None)
         else:
             return None, None
-
-
-class Exchange2010FolderList(object):
-    """
-    Creates & Stores a list of Exchange2010CalendarEvent items in the "self.events" variable.
-    """
-
-    def __init__(self, service=None, folder_type=u'all'):
-        """
-        @param folder_type: the type of folders to load. allowed_folder_types: (u'contacts', u'calendar', u'tasks')
-        """
-        allowed_folder_types = (u'contacts', u'calendar', u'tasks', u'all', u'inbox')
-        if folder_type not in allowed_folder_types:
-            raise FailedExchangeException
-
-        self.service = service
-        self.count = 0
-        self.folders = list()
-        self.folder_ids = list()
-
-        if folder_type != u'all':
-                body = soap_request.get_folder_items(folder_type, format=u'AllProperties')
-                response_xml = self.service.send(body)
-                self._parse_response_for_all_folders(response_xml, folder_type)
-        else:
-            # import all folders except the 'all' type
-            for ft in allowed_folder_types[:-1]:
-                body = soap_request.get_folder_items(ft, format=u'AllProperties')
-                response_xml = self.service.send(body)
-                self._parse_response_for_all_folders(response_xml, ft)
-
-        # Populate the event ID list, for convenience reasons.
-        for folder in self.folders:
-            self.folder_ids.append(folder._id)
-
-    def _parse_response_for_all_folders(self, response, folder_type):
-        """
-        This function will retrieve *most* of the event data, excluding Organizer & Attendee details
-        """
-        folder_xml_name = u'Folder'
-        if folder_type == u'calendar':
-            folder_xml_name = u'CalendarFolder'
-
-        if folder_type == u'tasks':
-            folder_xml_name = u'TasksFolder'
-
-        if folder_type == u'contacts':
-            folder_xml_name = u'ContactsFolder'
-
-        if folder_type == u'inbox':
-            folder_xml_name = u'Folder'
-
-        folders = response.xpath(u'//m:FindFolderResponse/m:ResponseMessages/m:FindFolderResponseMessage/m:RootFolder/t:Folders/t:%s' % folder_xml_name, namespaces=soap_request.NAMESPACES)
-        if folders:
-            self.count += len(folders)
-            log.debug(u'Found %s calendar folders' % len(folders))
-            for folder in folders:
-                self._add_folder(xml=soap_request.M.Items(deepcopy(folder)))
-        else:
-            log.debug(u'No %s folders found with search parameters.' % folder_type)
-
-    def _add_folder(self, xml=None):
-        log.debug(u'Adding new folder to all folder list.')
-        folder = Exchange2010Folder(service=self.service, xml=xml)
-        log.debug(u'Name of new fodler is %s' % folder._display_name)
-        self.folders.append(folder)
 
 
 class Exchange2010ContactService(BaseExchangeContactService):

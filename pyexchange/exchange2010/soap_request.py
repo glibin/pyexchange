@@ -207,7 +207,7 @@ def find_items(folder_id, query_string=None, format=u'Default',
         M.ItemShape(T.BaseShape(format)),
         Traversal=u'Shallow',
     )
-    if limit or offset:
+    if offset or (limit is not None):
         limit = limit or 1000  # the default in Exchange, apparently
         root.append(M.IndexedPageItemView(
             MaxEntriesReturned=str(limit),
@@ -249,23 +249,6 @@ def get_mail_items(items, format=u'Default', include_mime_content=False):
             items_node.append(T.ItemId(Id=i._id, ChangeKey=i._change_key))
         else:
             items_node.append(T.ItemId(Id=i._id))
-    return root
-
-
-# Id can be
-# (u'contacts', 'calendar', 'tasks')
-def get_folder_items(distinguished_folder_id, format=u"Default", traversal=u'Shallow'):
-    root = M.FindFolder(
-        {u'Traversal': traversal},
-        M.FolderShape(
-            T.BaseShape(format)
-        ),
-        M.ParentFolderIds(
-            T.DistinguishedFolderId({
-                u'Id': distinguished_folder_id,
-            })
-        )
-    )
     return root
 
 
@@ -372,14 +355,20 @@ def new_folder(folder):
     return root
 
 
-def find_folder(parent_id, format=u"Default"):
+def find_folder(parent_id, format=u"Default", traversal='Shallow',
+                limit=None, offset=0):
     root = M.FindFolder(
-        {u'Traversal': u'Shallow'},
-        M.FolderShape(
-            T.BaseShape(format)
-        ),
-        M.ParentFolderIds(folder_id_xml(parent_id))
+        M.FolderShape(T.BaseShape(format)),
+        Traversal=traversal,
     )
+    if offset or (limit is not None):
+        limit = limit or 1000  # the default in Exchange, apparently
+        root.append(M.IndexedPageFolderView(
+            MaxEntriesReturned=str(limit),
+            Offset=str(offset),
+            BasePoint='Beginning',
+        ))
+    root.append(M.ParentFolderIds(folder_id_xml(parent_id)))
     return root
 
 

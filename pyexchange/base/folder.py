@@ -14,12 +14,14 @@ class BaseExchangeFolder(object):
     _parent_id = None
     _parent_change_key = None
     _folder_type = u'Folder'
+    folder_class = None
 
     _service = None
 
-    _display_name = u''
-    _child_folder_count = None
-    _total_count = None
+    display_name = u''
+    child_folder_count = None
+    total_count = None
+    unread_count = None
 
     _track_dirty_attributes = False
     _dirty_attributes = set()  # any attributes that have changed, and we need to update in Exchange
