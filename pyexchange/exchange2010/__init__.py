@@ -1162,6 +1162,12 @@ class Exchange2010ContactItem(BaseExchangeContactItem):
             u'department': {
                 u'xpath': u'descendant-or-self::t:Contact/t:Department',
             },
+            u'company_name': {
+                u'xpath': u'descendant-or-self::t:Contact/t:CompanyName',
+            },
+            u'office_location': {
+                u'xpath': u'descendant-or-self::t:Contact/t:OfficeLocation',
+            },
             u'primary_phone': {
                 u'xpath': u"descendant-or-self::t:Contact/t:PhoneNumbers/t:Entry[@Key='PrimaryPhone']",
             },

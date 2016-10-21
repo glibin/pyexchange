@@ -31,6 +31,8 @@ class BaseExchangeContactItem(object):
     birthday = None
     job_title = None
     department = None
+    company_name = None
+    office_location = None
     primary_phone = None
     business_phone = None
     home_phone = None
