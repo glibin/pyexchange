@@ -1155,6 +1155,7 @@ class Exchange2010ContactItem(BaseExchangeContactItem):
             },
             u'birthday': {
                 u'xpath': u'descendant-or-self::t:Contact/t:Birthday',
+                u'cast': u'date_only_naive',
             },
             u'job_title': {
                 u'xpath': u'descendant-or-self::t:Contact/t:JobTitle',
