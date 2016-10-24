@@ -1338,7 +1338,7 @@ class Exchange2010MailList(object):
             id = mail_xml.xpath(u'descendant-or-self::t:Message/t:ItemId/@Id',
                                 namespaces=soap_request.NAMESPACES)
             mail = mail_dict[id[0]]
-            mail.load_details_from_xml(mail_xml)
+            mail._init_from_xml(mail_xml)
 
     def _parse_response_for_all_mails(self, xml):
         mails = xml.xpath(u'//t:Items/t:Message',
@@ -1368,12 +1368,40 @@ class Exchange2010MailItem(BaseExchangeMailItem):
         return self._init_from_xml(response_xml)
 
     def _init_from_xml(self, xml):
+        # Load basic single properties...
         properties = self._parse_mail_properties(xml)
-
         self._id = properties.pop('id')
         self._change_key = properties.pop('change_key')
-
         self._update_properties(properties)
+
+        # Now parse the more involved properties containing lists of
+        # things.
+        attachments = []
+        recipients_to = []
+        recipients_cc = []
+        # These need to be ./ or descendant::, otherwise they'll select
+        # all matching nodes in the entire XML document.
+        xml_attachments = xml.xpath(u'.//t:FileAttachment',
+                                    namespaces=soap_request.NAMESPACES)
+        xml_to_recipients = xml.xpath(u'.//t:ToRecipients/t:Mailbox',
+                                      namespaces=soap_request.NAMESPACES)
+        xml_cc_recipients = xml.xpath(u'.//t:CcRecipients/t:Mailbox',
+                                      namespaces=soap_request.NAMESPACES)
+
+        for to_r in xml_to_recipients:
+            to_r_props = self._parse_recipient(to_r)
+            recipients_to.append(to_r_props)
+        self.recipients_to = recipients_to
+
+        for cc_r in xml_cc_recipients:
+            cc_r_props = self._parse_recipient(cc_r)
+            recipients_cc.append(cc_r_props)
+        self.recipients_cc = recipients_cc
+
+        for attachment in xml_attachments:
+            att_props = self._parse_attachment(attachment)
+            attachments.append(att_props)
+        self.attachments = attachments
 
         return self
 
@@ -1402,16 +1430,11 @@ class Exchange2010MailItem(BaseExchangeMailItem):
     def load_extended_properties(self):
         body = soap_request.get_mail_items([self])
         xml_result = self.service.send(body)
-        mails = xml_result.xpath(u'//t:Message',
-                                 namespaces=soap_request.NAMESPACES)
-        for m in mails:
-            # this should only happen once
-            self.load_details_from_xml(m)
+        self._init_from_xml(xml_result)
 
     def _parse_mail_properties(self, xml):
         # Use relative selectors here so that we can call this in the
         # context of each Contact element without deepcopying.
-
         property_map = {
             u'id': {
                 u'xpath': u'descendant-or-self::t:Message/t:ItemId/@Id',
@@ -1439,37 +1462,35 @@ class Exchange2010MailItem(BaseExchangeMailItem):
             },
             u'has_attachments': {
                 u'xpath': u'descendant-or-self::t:Message/t:HasAttachments',
+                u'cast': 'bool',
             },
             u'size': {
                 u'xpath': u'descendant-or-self::t:Message/t:Size',
+                u'cast': 'int',
             },
             u'importance': {
                 u'xpath': u'descendant-or-self::t:Message/t:Importance',
             },
             u'received': {
                 u'xpath': u'descendant-or-self::t:Message/t:DateTimeReceived',
+                u'cast': 'datetime',
             },
-        }
-        return self.service._xpath_to_dict(
-            element=xml, property_map=property_map,
-            namespace_map=soap_request.NAMESPACES,
-        )
-
-    def _parse_mail_extended_properties(self, xml):
-        # Use relative selectors here so that we can call this in the
-        # context of each Contact element without deepcopying.
-        property_map = {
             u'datetime_sent': {
                 u'xpath': u'descendant-or-self::t:Message/t:DateTimeSent',
+                u'cast': 'datetime',
             },
             u'datetime_created': {
                 u'xpath': u'descendant-or-self::t:Message/t:DateTimeCreated',
+                u'cast': 'datetime',
             },
             u'mimecontent': {
                 u'xpath': u'descendant-or-self::t:Message/t:MimeContent',
             },
-            u'mail_body': {
-                u'xpath': u'descendant-or-self::t:Message/t:Body',
+            u'html_body': {
+                u'xpath': u'descendant-or-self::t:Message/t:Body[@BodyType="HTML"]',
+            },
+            u'text_body': {
+                u'xpath': u'descendant-or-self::t:Message/t:Body[@BodyType="Text"]',
             },
         }
         return self.service._xpath_to_dict(
@@ -1477,9 +1498,10 @@ class Exchange2010MailItem(BaseExchangeMailItem):
             namespace_map=soap_request.NAMESPACES,
         )
 
-    def _parse_attachments(self, xml):
-        # Use relative selectors here so that we can call this in the
-        # context of each Contact element without deepcopying.
+    def _parse_attachment(self, xml):
+        """
+        Called in the context of each attachment node.
+        """
         property_map = {
             u'id': {
                 u'xpath': u'descendant-or-self::t:AttachmentId/@Id',
@@ -1500,8 +1522,9 @@ class Exchange2010MailItem(BaseExchangeMailItem):
         )
 
     def _parse_recipient(self, xml):
-        # Use relative selectors here so that we can call this in the
-        # context of each Contact element without deepcopying.
+        """
+        Called in the context of each recipient node.
+        """
         property_map = {
             u'name': {
                 u'xpath': u'descendant-or-self::t:Name',
@@ -1514,38 +1537,6 @@ class Exchange2010MailItem(BaseExchangeMailItem):
             element=xml, property_map=property_map,
             namespace_map=soap_request.NAMESPACES,
         )
-
-    def load_details_from_xml(self, xml, load_attachments=False):
-        if load_attachments:
-            raise NotImplemented
-        properties = self._parse_mail_extended_properties(xml)
-        self._update_properties(properties)
-
-        # working get attachment call! :)
-        # item = self.service.send(soap_request.get_attachments(['AAAdAENocmlzdG9waEBydWthaS51YmVyZ3JhcGUuY29tAEYAAAAAANaGNy8FozRNlNXwalrBrAIHAP/GjqevaOpAoUvDe14z/MUAAAti/4cAAP/GjqevaOpAoUvDe14z/MUAAAtjBWMAAAESABAAmk2jbTOnHE6mgVKBvZv3eQ==']))
-        attachments = []
-        recipients_to = []
-        recipients_cc = []
-        # These need to be ./ or descendant::, otherwise they'll select
-        # all matching nodes in the entire XML document.
-        xml_attachments = xml.xpath(u'.//t:FileAttachment', namespaces=soap_request.NAMESPACES)
-        xml_to_recipients = xml.xpath(u'.//t:ToRecipients/t:Mailbox', namespaces=soap_request.NAMESPACES)
-        xml_cc_recipients = xml.xpath(u'.//t:CcRecipients/t:Mailbox', namespaces=soap_request.NAMESPACES)
-        for to_r in xml_to_recipients:
-            to_r_props = self._parse_recipient(to_r)
-            recipients_to.append(to_r_props)
-        self.recipients_to = recipients_to
-
-        for cc_r in xml_cc_recipients:
-            cc_r_props = self._parse_recipient(cc_r)
-            recipients_cc.append(cc_r_props)
-        self.recipients_cc = recipients_cc
-
-        for attachment in xml_attachments:
-            att_props = self._parse_attachments(attachment)
-            attachments.append(att_props)
-        self.attachments = attachments
-        return self
 
     def __repr__(self):
         return "<Exchange2010MailItem: {}>".format(self.subject.encode('utf-8'))

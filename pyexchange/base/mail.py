@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from __future__ import absolute_import, unicode_literals
+
 import base64
 
 
@@ -35,17 +37,8 @@ class BaseExchangeMailItem(object):
     attachments = []
     recipients_to = []
     recipients_cc = []
-
-    @property
-    def sender(self):
-        if self.from_name is None or self.from_email is None:
-            return u'%s <%s>' % (self.sender_name, self.sender_email)
-        else:
-            return u'%s <%s>' % (self.from_name, self.from_email)
-
-    @property
-    def body(self):
-        return base64.b64decode(self.mimecontent)
+    text_body = None
+    html_body = None
 
     def __init__(self, service, id=None, xml=None, folder_id=None, **kwargs):
         self.service = service
@@ -90,3 +83,19 @@ class BaseExchangeMailItem(object):
     def _reset_dirty_attributes(self):
         self._dirty_attributes = set()
 
+    def _format_email_address(self, name, email):
+        if name and email:
+            return "{} <{}>".format(name, email)
+        return name or email
+
+    @property
+    def sender(self):
+        from_ = self._format_email_address(self.from_name, self.from_email)
+        if not from_:
+            from_ = self._format_email_address(self.sender_name,
+                                               self.sender_email)
+        return from_
+
+    @property
+    def body(self):
+        return base64.b64decode(self.mimecontent)
