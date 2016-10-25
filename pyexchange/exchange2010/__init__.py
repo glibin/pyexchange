@@ -1379,6 +1379,7 @@ class Exchange2010MailItem(BaseExchangeMailItem):
         attachments = []
         recipients_to = []
         recipients_cc = []
+        recipients_bcc = []
         # These need to be ./ or descendant::, otherwise they'll select
         # all matching nodes in the entire XML document.
         xml_attachments = xml.xpath(u'.//t:FileAttachment',
@@ -1387,6 +1388,8 @@ class Exchange2010MailItem(BaseExchangeMailItem):
                                       namespaces=soap_request.NAMESPACES)
         xml_cc_recipients = xml.xpath(u'.//t:CcRecipients/t:Mailbox',
                                       namespaces=soap_request.NAMESPACES)
+        xml_bcc_recipients = xml.xpath(u'.//t:BccRecipients/t:Mailbox',
+                                       namespaces=soap_request.NAMESPACES)
 
         for to_r in xml_to_recipients:
             to_r_props = self._parse_recipient(to_r)
@@ -1397,6 +1400,11 @@ class Exchange2010MailItem(BaseExchangeMailItem):
             cc_r_props = self._parse_recipient(cc_r)
             recipients_cc.append(cc_r_props)
         self.recipients_cc = recipients_cc
+
+        for bcc_r in xml_bcc_recipients:
+            bcc_r_props = self._parse_recipient(bcc_r)
+            recipients_bcc.append(bcc_r_props)
+        self.recipients_bcc = recipients_bcc
 
         for attachment in xml_attachments:
             att_props = self._parse_attachment(attachment)

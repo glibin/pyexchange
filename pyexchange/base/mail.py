@@ -34,15 +34,20 @@ class BaseExchangeMailItem(object):
     datetime_sent = None
     datetime_created = None
     mimecontent = None  # base64 encoded
-    attachments = []
-    recipients_to = []
-    recipients_cc = []
+    attachments = None
+    recipients_to = None
+    recipients_cc = None
+    recipients_bcc = None
     text_body = None
     html_body = None
 
     def __init__(self, service, id=None, xml=None, folder_id=None, **kwargs):
         self.service = service
         self.folder_id = folder_id
+        self.attachments = []
+        self.recipients_to = []
+        self.recipients_cc = []
+        self.recipients_bcc = []
 
         if xml is not None:
             self._init_from_xml(xml)
