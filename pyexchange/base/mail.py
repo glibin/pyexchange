@@ -40,6 +40,7 @@ class BaseExchangeMailItem(object):
     recipients_bcc = None
     text_body = None
     html_body = None
+    is_read = None
 
     def __init__(self, service, id=None, xml=None, folder_id=None, **kwargs):
         self.service = service

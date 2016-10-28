@@ -1500,6 +1500,10 @@ class Exchange2010MailItem(BaseExchangeMailItem):
             u'text_body': {
                 u'xpath': u'descendant-or-self::t:Message/t:Body[@BodyType="Text"]',
             },
+            u'is_read': {
+                u'xpath': u'descendant-or-self::t:Message/t:IsRead',
+                u'cast': 'bool',
+            },
         }
         return self.service._xpath_to_dict(
             element=xml, property_map=property_map,
