@@ -1453,13 +1453,13 @@ class Exchange2010MailItem(BaseExchangeMailItem):
             u'subject': {
                 u'xpath': u'descendant-or-self::t:Subject',
             },
-            u'sender_mail': {
+            u'sender_email': {
                 u'xpath': u'descendant-or-self::t:Message/t:Sender/t:Mailbox/t:EmailAddress',
             },
             u'sender_name': {
                 u'xpath': u'descendant-or-self::t:Message/t:Sender/t:Mailbox/t:Name',
             },
-            u'from_mail': {
+            u'from_email': {
                 u'xpath': u'descendant-or-self::t:Message/t:From/t:Mailbox/t:EmailAddress',
             },
             u'from_name': {
