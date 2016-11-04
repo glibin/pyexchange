@@ -21,7 +21,7 @@ class BaseExchangeTaskItem(object):
     _dirty_attributes = set()  # any attributes that have changed, and we need to update in Exchange
 
     subject = None
-    body = None
+    text_body = None
     html_body = None
     categories = None
     is_draft = None
@@ -32,8 +32,12 @@ class BaseExchangeTaskItem(object):
     is_complete = None
     owner = None
     start_date = None
+    complete_date = None
     status = None
     status_description = None
+    percent_complete = None
+    importance = None
+    companies = None
     last_modified_by = None
     last_modified_at = None
 

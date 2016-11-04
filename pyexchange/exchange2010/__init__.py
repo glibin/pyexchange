@@ -1714,7 +1714,7 @@ class Exchange2010TaskItem(BaseExchangeTaskItem):
             u'subject': {
                 u'xpath': u'descendant-or-self::t:Task/t:Subject',
             },
-            u'body': {
+            u'text_body': {
                 u'xpath': u'descendant-or-self::t:Task/t:Body[@BodyType=\'Text\']',
             },
             u'html_body': {
@@ -1737,7 +1737,7 @@ class Exchange2010TaskItem(BaseExchangeTaskItem):
             },
             u'due_date': {
                 u'xpath': u"descendant-or-self::t:Task/t:DueDate",
-                u'cast': u'datetime',
+                u'cast': u'date',
             },
             # TODO: find a way to represent recurrence
             # https://msdn.microsoft.com/en-us/library/office/aa564273(v=exchg.150).aspx
@@ -1753,13 +1753,27 @@ class Exchange2010TaskItem(BaseExchangeTaskItem):
             },
             u'start_date': {
                 u'xpath': u'descendant-or-self::t:Task/t:StartDate',
-                u'cast': u'datetime',
+                u'cast': u'date',
+            },
+            u'complete_date': {
+                u'xpath': u'descendant-or-self::t:Task/t:CompleteDate',
+                u'cast': u'date',
             },
             u'status': {
                 u'xpath': u"descendant-or-self::t:Task/t:Status",
             },
             u'status_description': {
                 u'xpath': u"descendant-or-self::t:Task/t:StatusDescription",
+            },
+            u'percent_complete': {
+                u'xpath': u'descendant-or-self::t:Task/t:PercentComplete',
+                u'cast': u'int',
+            },
+            u'importance': {
+                u'xpath': u"descendant-or-self::t:Task/t:Importance",
+            },
+            u'companies': {
+                u'xpath': u"descendant-or-self::t:Task/t:Companies/t:String",
             },
             u'last_modified_by': {
                 u'xpath': u"descendant-or-self::t:Task/t:LastModifiedName",
