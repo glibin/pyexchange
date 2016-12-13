@@ -23,6 +23,8 @@ from copy import deepcopy
 from collections import namedtuple
 from datetime import date
 import warnings
+import email
+import six
 
 log = logging.getLogger("pyexchange")
 
@@ -1226,6 +1228,11 @@ class Exchange2010ContactItem(BaseExchangeContactItem):
         return "<Exchange2010ContactItem: {}>".format(self.display_name.encode('utf-8'))
 
 
+BODY_TYPE_HTML = u'HTML'
+BODY_TYPE_TEXT = u'Text'
+BODY_TYPES = [BODY_TYPE_HTML, BODY_TYPE_TEXT]
+
+
 class Exchange2010MailService(BaseExchangeMailService):
     def get_mail(self, id):
         return Exchange2010MailItem(service=self.service, id=id)
@@ -1266,6 +1273,73 @@ class Exchange2010MailService(BaseExchangeMailService):
 
         return att_dict
 
+    def send(self, subject, body, recipients, cc_recipients=[], bcc_recipients=[], body_type=BODY_TYPE_HTML,
+             attachments=[]):
+        """
+          List of recipients (and CC and BCC) are expected to be a list of either strings or tuples ('name', 'email_address')
+        """
+        for list_of_recipients in (recipients, cc_recipients, bcc_recipients):
+            for i, recipient in enumerate(list_of_recipients):
+                if isinstance(recipient, six.string_types):
+                    list_of_recipients[i] = email.utils.parseaddr(recipient)
+                elif not isinstance(recipient, tuple):
+                    raise ValueError('Invalid email format: %s' % recipient)
+        log.info('Sending email to recipients: {main}, CC to {cc}, BCC to {bcc}'.format(main=recipients, cc=cc_recipients, bcc=bcc_recipients))
+        folder = "sentitems"
+        disposition = "SendAndSaveCopy"
+        if attachments:
+            folder = "drafts"
+            disposition = "SaveOnly"
+        response = self.service.send(soap_request.create_email(subject, body, recipients, cc_recipients,
+                                                               bcc_recipients, body_type, folder=folder,
+                                                               disposition=disposition))
+        atts = response.xpath(u'//t:Message',
+                              namespaces=soap_request.NAMESPACES)
+        att_dict = None
+        property_map = {
+            u'id': {
+                u'xpath': u'descendant-or-self::t:ItemId/@Id',
+            },
+            u'change_key': {
+                u'xpath': u'descendant-or-self::t:ItemId/@ChangeKey',
+            }
+        }
+        for xml in atts:
+            att_dict = self.service._xpath_to_dict(
+                element=xml, property_map=property_map,
+                namespace_map=soap_request.NAMESPACES,
+            )
+
+        if att_dict and attachments:
+            response = self.service.send(soap_request.create_attachment(att_dict['id'], att_dict['change_key'],
+                                                                        attachments))
+            atts = response.xpath(u'//t:FileAttachment',
+                                  namespaces=soap_request.NAMESPACES)
+
+            attach_dict = None
+            property_map = {
+                u'id': {
+                    u'xpath': u'descendant-or-self::t:AttachmentId/@Id',
+                },
+                u'root_id': {
+                    u'xpath': u'descendant-or-self::t:AttachmentId/@RootItemId',
+                },
+                u'change_key': {
+                    u'xpath': u'descendant-or-self::t:AttachmentId/@RootItemChangeKey',
+                }
+            }
+            for xml in atts:
+                attach_dict = self.service._xpath_to_dict(
+                    element=xml, property_map=property_map,
+                    namespace_map=soap_request.NAMESPACES,
+                )
+                break
+
+            if attach_dict:
+                self.service.send(soap_request.update_email(attach_dict['root_id'], attach_dict['change_key'],
+                                                            subject))
+        return att_dict
+
 
 class Exchange2010MailList(object):
     def __init__(self, service=None, folder_id=u'inbox', xml_result=None):
@@ -1296,7 +1370,7 @@ class Exchange2010MailList(object):
         while True:
             body = soap_request.find_items(
                 folder_id=self.folder_id, limit=self.service.batch_size,
-                offset=offset,
+                offset=offset, format=u'AllProperties'
             )
             xml_result = self.service.send(body)
             last_batch = "true" == xml_result.xpath(
@@ -1453,6 +1527,8 @@ class Exchange2010MailItem(BaseExchangeMailItem):
     def _parse_mail_properties(self, xml):
         # Use relative selectors here so that we can call this in the
         # context of each Contact element without deepcopying.
+        print etree.tostring(xml)
+
         property_map = {
             u'id': {
                 u'xpath': u'descendant-or-self::t:Message/t:ItemId/@Id',
@@ -1477,6 +1553,15 @@ class Exchange2010MailItem(BaseExchangeMailItem):
             },
             u'culture': {
                 u'xpath': u'descendant-or-self::t:Message/t:Culture',
+            },
+            u'internet_message_id': {
+                u'xpath': u'descendant-or-self::t:Message/t:InternetMessageId',
+            },
+            u'references': {
+                u'xpath': u'descendant-or-self::t:Message/t:References',
+            },
+            u'in_reply_to': {
+                u'xpath': u'descendant-or-self::t:Message/t:InReplyTo',
             },
             u'has_attachments': {
                 u'xpath': u'descendant-or-self::t:Message/t:HasAttachments',

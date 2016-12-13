@@ -26,6 +26,9 @@ class BaseExchangeMailItem(object):
     from_name = None
     from_email = None
     culture = None
+    internet_message_id = None
+    references = None
+    in_reply_to = None
     has_attachments = None
     size = None
     importance = None

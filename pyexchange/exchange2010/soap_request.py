@@ -7,6 +7,7 @@ Unless required by applicable law or agreed to in writing, software?distributed 
 from lxml.builder import ElementMaker
 from ..utils import convert_datetime_to_utc
 from ..compat import _unicode
+import base64
 
 MSG_NS = u'http://schemas.microsoft.com/exchange/services/2006/messages'
 TYPE_NS = u'http://schemas.microsoft.com/exchange/services/2006/types'
@@ -755,3 +756,115 @@ def unsubscribe_subscription_id(push_id):
     return M.Unsubscribe(
         M.SubscriptionId(push_id)
     )
+
+
+def create_attachment(parent_id, change_key, attachments):
+    """
+    https://msdn.microsoft.com/en-us/library/aa565877(exchg.140).aspx
+    <CreateAttachment xmlns="http://schemas.microsoft.com/exchange/services/2006/messages"
+                    xmlns:t="http://schemas.microsoft.com/exchange/services/2006/types">
+    <ParentItemId Id="AAAtAE..." ChangeKey="CQAAABYA..."/>
+    <Attachments>
+      <t:FileAttachment>
+        <t:Name>SomeFile</t:Name>
+        <t:Content>AQIDBAU=</t:Content>
+      </t:FileAttachment>
+    </Attachments>
+    </CreateAttachment>
+    """
+    return M.CreateAttachment(
+        M.ParentItemId(Id=parent_id, ChangeKey=change_key),
+        M.Attachments(*[T.FileAttachment(
+            T.Name(attachment['name']),
+            T.Content(base64.standard_b64encode(attachment['content'])),
+        ) for attachment in attachments])
+    )
+
+
+def update_email(email_id, change_key, subject, folder="sentitems",
+                 disposition="SendAndSaveCopy"):
+    """Update email (mostly for sending after attachments)"""
+    return M.UpdateItem(
+        M.SavedItemFolderId(
+            T.DistinguishedFolderId(Id=folder)
+        ),
+        M.ItemChanges(
+            T.ItemChange(
+                T.ItemId(Id=email_id, ChangeKey=change_key),
+                T.Updates(T.SetItemField(
+                    T.FieldURI(FieldURI='item:Subject'),
+                    T.Message(
+                        T.Subject(subject)
+                    )
+                ))
+            )
+        ),
+        MessageDisposition=disposition,
+        ConflictResolution="AutoResolve"
+    )
+
+
+def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_type, folder="sentitems",
+                 disposition="SendAndSaveCopy"):
+    """
+    https://msdn.microsoft.com/EN-US/library/office/aa566468(v=exchg.150).aspx
+    <CreateItem MessageDisposition="SendAndSaveCopy" xmlns="http://schemas.microsoft.com/exchange/services/2006/messages">
+      <SavedItemFolderId>
+        <t:DistinguishedFolderId Id="drafts" />
+      </SavedItemFolderId>
+      <Items>
+        <t:Message>
+          <t:ItemClass>IPM.Note</t:ItemClass>
+          <t:Subject>Project Action</t:Subject>
+          <t:Body BodyType="Text">Priority - Update specification</t:Body>
+          <t:ToRecipients>
+            <t:Mailbox>
+              <t:EmailAddress>sschmidt@example.com</t:EmailAddress>
+            </t:Mailbox>
+          </t:ToRecipients>
+          <t:IsRead>false</t:IsRead>
+        </t:Message>
+      </Items>
+    </CreateItem>
+    Note on Mailbox:
+    https://msdn.microsoft.com/en-us/library/office/aa565036(v=exchg.150).aspx
+    <Mailbox>
+       <Name/>
+       <EmailAddress/>
+       <RoutingType/>
+       <MailboxType/>
+       <ItemId/>
+    </Mailbox>
+    """
+    # TODO probably should be using the already used resource_node method
+    # Create email addresses first
+    to_recipients = T.ToRecipients(*[T.Mailbox(
+        T.Name(recipient[0]),
+        T.EmailAddress(recipient[1])
+    ) for recipient in recipients])
+    cc_recipients = T.CcRecipients(*[T.Mailbox(
+        T.Name(recipient[0]),
+        T.EmailAddress(recipient[1])
+    ) for recipient in cc_recipients])
+    bcc_recipients = T.BccRecipients(*[T.Mailbox(
+        T.Name(recipient[0]),
+        T.EmailAddress(recipient[1])
+    ) for recipient in bcc_recipients])
+
+    return M.CreateItem(
+        M.SavedItemFolderId(
+            T.DistinguishedFolderId(Id=folder)
+        ),
+        M.Items(
+            T.Message(
+                T.ItemClass('IPM.Note'),
+                T.Subject(subject),
+                T.Body(body, BodyType=body_type),
+                to_recipients,
+                cc_recipients,
+                bcc_recipients,
+                T.IsRead('false'),
+            )
+        )
+
+        , MessageDisposition=disposition)
