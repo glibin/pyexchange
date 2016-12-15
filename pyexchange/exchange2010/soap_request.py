@@ -853,7 +853,7 @@ def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_
 
     message_params = []
     if params:
-        for key, value in params:
+        for key, value in params.items():
             message_params.append(getattr(T, key)(value))
 
     return M.CreateItem(
