@@ -1274,7 +1274,7 @@ class Exchange2010MailService(BaseExchangeMailService):
         return att_dict
 
     def send(self, subject, body, recipients, cc_recipients=[], bcc_recipients=[], body_type=BODY_TYPE_HTML,
-             attachments=[]):
+             params={}, attachments=[]):
         """
           List of recipients (and CC and BCC) are expected to be a list of either strings or tuples ('name', 'email_address')
         """
@@ -1291,7 +1291,7 @@ class Exchange2010MailService(BaseExchangeMailService):
             folder = "drafts"
             disposition = "SaveOnly"
         response = self.service.send(soap_request.create_email(subject, body, recipients, cc_recipients,
-                                                               bcc_recipients, body_type, folder=folder,
+                                                               bcc_recipients, body_type, params=params, folder=folder,
                                                                disposition=disposition))
         atts = response.xpath(u'//t:Message',
                               namespaces=soap_request.NAMESPACES)

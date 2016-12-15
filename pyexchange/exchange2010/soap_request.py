@@ -804,7 +804,7 @@ def update_email(email_id, change_key, subject, folder="sentitems",
     )
 
 
-def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_type, folder="sentitems",
+def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_type, params=None, folder="sentitems",
                  disposition="SendAndSaveCopy"):
     """
     https://msdn.microsoft.com/EN-US/library/office/aa566468(v=exchg.150).aspx
@@ -851,6 +851,11 @@ def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_
         T.EmailAddress(recipient[1])
     ) for recipient in bcc_recipients])
 
+    message_params = []
+    if params:
+        for key, value in params:
+            message_params.append(getattr(T, key)(value))
+
     return M.CreateItem(
         M.SavedItemFolderId(
             T.DistinguishedFolderId(Id=folder)
@@ -864,6 +869,7 @@ def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_
                 cc_recipients,
                 bcc_recipients,
                 T.IsRead('false'),
+                *message_params
             )
         )
 
