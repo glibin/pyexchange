@@ -804,8 +804,8 @@ def update_email(email_id, change_key, subject, folder="sentitems",
     )
 
 
-def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_type, params=None, folder="sentitems",
-                 disposition="SendAndSaveCopy"):
+def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_type, params=None,
+                 folder="sentitems", disposition="SendAndSaveCopy"):
     """
     https://msdn.microsoft.com/EN-US/library/office/aa566468(v=exchg.150).aspx
     <CreateItem MessageDisposition="SendAndSaveCopy" xmlns="http://schemas.microsoft.com/exchange/services/2006/messages">

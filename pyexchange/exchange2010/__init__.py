@@ -1285,11 +1285,8 @@ class Exchange2010MailService(BaseExchangeMailService):
                 elif not isinstance(recipient, tuple):
                     raise ValueError('Invalid email format: %s' % recipient)
         log.info('Sending email to recipients: {main}, CC to {cc}, BCC to {bcc}'.format(main=recipients, cc=cc_recipients, bcc=bcc_recipients))
-        folder = "sentitems"
-        disposition = "SendAndSaveCopy"
-        if attachments:
-            folder = "drafts"
-            disposition = "SaveOnly"
+        folder = "drafts"
+        disposition = "SaveOnly"
         response = self.service.send(soap_request.create_email(subject, body, recipients, cc_recipients,
                                                                bcc_recipients, body_type, params=params, folder=folder,
                                                                disposition=disposition))
@@ -1309,34 +1306,39 @@ class Exchange2010MailService(BaseExchangeMailService):
                 element=xml, property_map=property_map,
                 namespace_map=soap_request.NAMESPACES,
             )
+            break
 
-        if att_dict and attachments:
-            response = self.service.send(soap_request.create_attachment(att_dict['id'], att_dict['change_key'],
-                                                                        attachments))
-            atts = response.xpath(u'//t:FileAttachment',
-                                  namespaces=soap_request.NAMESPACES)
+        if att_dict:
+            if attachments:
+                response = self.service.send(soap_request.create_attachment(att_dict['id'], att_dict['change_key'],
+                                                                            attachments))
+                atts = response.xpath(u'//t:FileAttachment',
+                                      namespaces=soap_request.NAMESPACES)
 
-            attach_dict = None
-            property_map = {
-                u'id': {
-                    u'xpath': u'descendant-or-self::t:AttachmentId/@Id',
-                },
-                u'root_id': {
-                    u'xpath': u'descendant-or-self::t:AttachmentId/@RootItemId',
-                },
-                u'change_key': {
-                    u'xpath': u'descendant-or-self::t:AttachmentId/@RootItemChangeKey',
+                attach_dict = None
+                property_map = {
+                    u'id': {
+                        u'xpath': u'descendant-or-self::t:AttachmentId/@Id',
+                    },
+                    u'root_id': {
+                        u'xpath': u'descendant-or-self::t:AttachmentId/@RootItemId',
+                    },
+                    u'change_key': {
+                        u'xpath': u'descendant-or-self::t:AttachmentId/@RootItemChangeKey',
+                    }
                 }
-            }
-            for xml in atts:
-                attach_dict = self.service._xpath_to_dict(
-                    element=xml, property_map=property_map,
-                    namespace_map=soap_request.NAMESPACES,
-                )
-                break
+                for xml in atts:
+                    attach_dict = self.service._xpath_to_dict(
+                        element=xml, property_map=property_map,
+                        namespace_map=soap_request.NAMESPACES,
+                    )
+                    break
 
-            if attach_dict:
-                self.service.send(soap_request.update_email(attach_dict['root_id'], attach_dict['change_key'],
+                if attach_dict:
+                    self.service.send(soap_request.update_email(attach_dict['root_id'], attach_dict['change_key'],
+                                                                subject))
+            else:
+                self.service.send(soap_request.update_email(att_dict['id'], att_dict['change_key'],
                                                             subject))
         return att_dict
 
@@ -1519,8 +1521,8 @@ class Exchange2010MailItem(BaseExchangeMailItem):
                     (('att_id', base64.b64encode(att['id'])),)
                 )
 
-    def load_extended_properties(self):
-        body = soap_request.get_mail_items([self])
+    def load_extended_properties(self, include_mime_content=False):
+        body = soap_request.get_mail_items([self], include_mime_content=include_mime_content)
         xml_result = self.service.send(body)
         self._init_from_xml(xml_result)
 
@@ -1646,7 +1648,7 @@ class Exchange2010MailItem(BaseExchangeMailItem):
         )
 
     def __repr__(self):
-        return "<Exchange2010MailItem: {}>".format(self.subject.encode('utf-8'))
+        return "<Exchange2010MailItem: {}>".format(self.id)
 
 
 class Exchange2010TaskService(BaseExchangeTaskService):
