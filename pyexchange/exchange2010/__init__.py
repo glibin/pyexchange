@@ -1601,7 +1601,7 @@ class Exchange2010MailItem(BaseExchangeMailItem):
     def _parse_mail_properties(self, xml):
         # Use relative selectors here so that we can call this in the
         # context of each Contact element without deepcopying.
-        print etree.tostring(xml)
+        print(etree.tostring(xml))
 
         property_map = {
             u'id': {
