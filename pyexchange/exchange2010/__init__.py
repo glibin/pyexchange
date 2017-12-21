@@ -1273,6 +1273,78 @@ class Exchange2010MailService(BaseExchangeMailService):
 
         return att_dict
 
+    def send_mime(self, subject, mime, recipients, cc_recipients=[], bcc_recipients=[],
+                  params={}, attachments=[]):
+        """
+          List of recipients (and CC and BCC) are expected to be a list of either strings or tuples ('name', 'email_address')
+        """
+        for list_of_recipients in (recipients, cc_recipients, bcc_recipients):
+            for i, recipient in enumerate(list_of_recipients):
+                if isinstance(recipient, six.string_types):
+                    list_of_recipients[i] = email.utils.parseaddr(recipient)
+                elif not isinstance(recipient, tuple):
+                    raise ValueError('Invalid email format: %s' % recipient)
+        log.info('Sending email to recipients: {main}, CC to {cc}, BCC to {bcc}'.format(main=recipients,
+                                                                                        cc=cc_recipients, bcc=bcc_recipients))
+        folder = "drafts"
+        disposition = "SaveOnly"
+        response = self.service.send(soap_request.create_mime_email(subject, mime, recipients, cc_recipients,
+                                                                    bcc_recipients, params=params, folder=folder,
+                                                                    disposition=disposition))
+        atts = response.xpath(u'//t:Message',
+                              namespaces=soap_request.NAMESPACES)
+
+        att_dict = None
+        property_map = {
+            u'id': {
+                u'xpath': u'descendant-or-self::t:ItemId/@Id',
+            },
+            u'change_key': {
+                u'xpath': u'descendant-or-self::t:ItemId/@ChangeKey',
+            }
+        }
+        for xml in atts:
+            att_dict = self.service._xpath_to_dict(
+                element=xml, property_map=property_map,
+                namespace_map=soap_request.NAMESPACES,
+            )
+            break
+
+        if att_dict:
+            if attachments:
+                response = self.service.send(soap_request.create_attachment(att_dict['id'], att_dict['change_key'],
+                                                                            attachments))
+                atts = response.xpath(u'//t:FileAttachment',
+                                      namespaces=soap_request.NAMESPACES)
+
+                attach_dict = None
+                property_map = {
+                    u'id': {
+                        u'xpath': u'descendant-or-self::t:AttachmentId/@Id',
+                    },
+                    u'root_id': {
+                        u'xpath': u'descendant-or-self::t:AttachmentId/@RootItemId',
+                    },
+                    u'change_key': {
+                        u'xpath': u'descendant-or-self::t:AttachmentId/@RootItemChangeKey',
+                    }
+                }
+                for xml in atts:
+                    attach_dict = self.service._xpath_to_dict(
+                        element=xml, property_map=property_map,
+                        namespace_map=soap_request.NAMESPACES,
+                    )
+                    break
+
+                if attach_dict:
+                    self.service.send(soap_request.update_email(attach_dict['root_id'], attach_dict['change_key'],
+                                                                subject))
+            else:
+                self.service.send(soap_request.update_email(att_dict['id'], att_dict['change_key'],
+                                                            subject))
+
+        return att_dict
+
     def send(self, subject, body, recipients, cc_recipients=[], bcc_recipients=[], body_type=BODY_TYPE_HTML,
              params={}, attachments=[]):
         """
