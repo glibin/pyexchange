@@ -874,3 +874,75 @@ def create_email(subject, body, recipients, cc_recipients, bcc_recipients, body_
         )
 
         , MessageDisposition=disposition)
+
+
+def create_mime_email(subject, mime, recipients, cc_recipients, bcc_recipients, params=None,
+                 folder="sentitems", disposition="SendAndSaveCopy"):
+    """
+    https://msdn.microsoft.com/EN-US/library/office/aa566468(v=exchg.150).aspx
+    <CreateItem MessageDisposition="SendAndSaveCopy" xmlns="http://schemas.microsoft.com/exchange/services/2006/messages">
+      <SavedItemFolderId>
+        <t:DistinguishedFolderId Id="drafts" />
+      </SavedItemFolderId>
+      <Items>
+        <t:Message>
+          <t:ItemClass>IPM.Note</t:ItemClass>
+          <t:Subject>Project Action</t:Subject>
+          <t:MimeContent>base64 of email</t:Body>
+          <t:ToRecipients>
+            <t:Mailbox>
+              <t:EmailAddress>sschmidt@example.com</t:EmailAddress>
+            </t:Mailbox>
+          </t:ToRecipients>
+          <t:IsRead>false</t:IsRead>
+        </t:Message>
+      </Items>
+    </CreateItem>
+    Note on Mailbox:
+    https://msdn.microsoft.com/en-us/library/office/aa565036(v=exchg.150).aspx
+    <Mailbox>
+       <Name/>
+       <EmailAddress/>
+       <RoutingType/>
+       <MailboxType/>
+       <ItemId/>
+    </Mailbox>
+    """
+    # TODO probably should be using the already used resource_node method
+    # Create email addresses first
+    to_recipients = T.ToRecipients(*[T.Mailbox(
+        T.Name(recipient[0]),
+        T.EmailAddress(recipient[1])
+    ) for recipient in recipients])
+    cc_recipients = T.CcRecipients(*[T.Mailbox(
+        T.Name(recipient[0]),
+        T.EmailAddress(recipient[1])
+    ) for recipient in cc_recipients])
+    bcc_recipients = T.BccRecipients(*[T.Mailbox(
+        T.Name(recipient[0]),
+        T.EmailAddress(recipient[1])
+    ) for recipient in bcc_recipients])
+
+    message_params = []
+    if params:
+        for key, value in params.items():
+            message_params.append(getattr(T, key)(value))
+
+    return M.CreateItem(
+        M.SavedItemFolderId(
+            T.DistinguishedFolderId(Id=folder)
+        ),
+        M.Items(
+            T.Message(
+                T.ItemClass('IPM.Note'),
+                T.Subject(subject),
+                T.MimeContent(mime),
+                to_recipients,
+                cc_recipients,
+                bcc_recipients,
+                T.IsRead('false'),
+                *message_params
+            )
+        )
+
+        , MessageDisposition=disposition)
