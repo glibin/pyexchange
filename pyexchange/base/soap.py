@@ -53,7 +53,7 @@ class ExchangeServiceSOAP(object):
             tree = etree.XML(response.encode(encoding))
         except (etree.XMLSyntaxError, TypeError):
             try:
-                tree = etree.XML(remove_control_characters(response.decode(encoding)).encode(encoding))
+                tree = etree.XML(remove_control_characters(response).encode(encoding))
             except (etree.XMLSyntaxError, TypeError) as err:
                 raise FailedExchangeException(u"Unable to parse response from Exchange - check your login information. Error: %s" % err)
 
