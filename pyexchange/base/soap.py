@@ -5,11 +5,13 @@ Licensed under the Apache License, Version 2.0 (the "License");?you may not use 
 Unless required by applicable law or agreed to in writing, software?distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 """
 import logging
+import re
 
 from lxml import etree
 from lxml.builder import ElementMaker
 from datetime import datetime
 from pytz import utc
+
 
 from ..exceptions import FailedExchangeException
 
@@ -19,6 +21,17 @@ SOAP_NAMESPACES = {u's': SOAP_NS}
 S = ElementMaker(namespace=SOAP_NS, nsmap=SOAP_NAMESPACES)
 
 log = logging.getLogger('pyexchange')
+
+
+def remove_control_characters(html):
+    def str_to_int(s, default, base=10):
+        if int(s, base) < 0x10000:
+            return unichr(int(s, base))
+        return default
+    html = re.sub(ur'&#(\d+);?', lambda c: str_to_int(c.group(1), c.group(0)), html)
+    html = re.sub(ur'&#[xX]([0-9a-fA-F]+);?', lambda c: str_to_int(c.group(1), c.group(0), base=16), html)
+    html = re.sub(ur'[\x00-\x08\x0b\x0e-\x1f\x7f]', '', html)
+    return html
 
 
 class ExchangeServiceSOAP(object):
@@ -38,8 +51,12 @@ class ExchangeServiceSOAP(object):
 
         try:
             tree = etree.XML(response.encode(encoding))
-        except (etree.XMLSyntaxError, TypeError) as err:
-            raise FailedExchangeException(u"Unable to parse response from Exchange - check your login information. Error: %s" % err)
+        except (etree.XMLSyntaxError, TypeError):
+            try:
+                tree = etree.XML(remove_control_characters(response.decode(encoding)).encode(encoding))
+            except (etree.XMLSyntaxError, TypeError) as err:
+                raise FailedExchangeException(u"Unable to parse response from Exchange - check your login information. Error: %s" % err)
+
         if check_for_errors:
             self._check_for_errors(tree)
 
