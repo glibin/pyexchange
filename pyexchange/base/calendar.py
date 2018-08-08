@@ -76,6 +76,7 @@ class BaseExchangeCalendarEvent(object):
         u'_id', u'subject', u'start', u'end', u'location', u'html_body', u'text_body', u'organizer',
         u'_attendees', u'_resources', u'reminder_minutes_before_start', u'is_all_day',
         'recurrence', 'recurrence_interval', 'recurrence_days', 'recurrence_day', 'created',
+        'extended_property',
         ]
 
     RECURRENCE_ATTRIBUTES = [
