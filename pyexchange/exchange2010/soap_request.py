@@ -461,11 +461,17 @@ def new_event(event):
     else:
         calendar_node.append(T.ReminderIsSet('false'))
 
+    if event.extended_property:
+        calendar_node.append(T.ExtendedFieldURI())
+        calendar_node.append(T.Value(str(event.extended_property)))
     calendar_node.append(T.Start(start.strftime(EXCHANGE_DATETIME_FORMAT)))
     calendar_node.append(T.End(end.strftime(EXCHANGE_DATETIME_FORMAT)))
 
     if event.is_all_day:
         calendar_node.append(T.IsAllDayEvent('true'))
+
+    if event.created:
+        calendar_node.append(T.DateTimeCreated(convert_datetime_to_utc(event.created)))
 
     calendar_node.append(T.Location(event.location or u''))
 

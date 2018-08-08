@@ -31,15 +31,18 @@ def remove_control_characters(html):
         if int(s, base) < 0x10000:
             return unichr(int(s, base))
         return default
-
-    if not IS_PYTHON3:
-        html = re.sub(ur'&#(\d+);?', lambda c: str_to_int(c.group(1), c.group(0)), html)
-        html = re.sub(ur'&#[xX]([0-9a-fA-F]+);?', lambda c: str_to_int(c.group(1), c.group(0), base=16), html)
-        html = re.sub(ur'[\x00-\x08\x0b\x0e-\x1f\x7f]', '', html)
-    else:
-        html = re.sub(r'&#(\d+);?', lambda c: str_to_int(c.group(1), c.group(0)), html)
-        html = re.sub(r'&#[xX]([0-9a-fA-F]+);?', lambda c: str_to_int(c.group(1), c.group(0), base=16), html)
-        html = re.sub(r'[\x00-\x08\x0b\x0e-\x1f\x7f]', '', html)
+    res = [r'&#(\d+);?',
+           r'&#[xX]([0-9a-fA-F]+);?',
+           r'[\x00-\x08\x0b\x0e-\x1f\x7f]']
+    for x, r in enumerate(list(res)):
+        try:
+            r = r.decode('raw_unicode_escape')
+            res[x] = r
+        except AttributeError:
+            pass
+    html = re.sub(res[0], lambda c: str_to_int(c.group(1), c.group(0)), html)
+    html = re.sub(res[1], lambda c: str_to_int(c.group(1), c.group(0), base=16), html)
+    html = re.sub(res[2], '', html)
     return html
 
 
