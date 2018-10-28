@@ -7,8 +7,10 @@ Unless required by applicable law or agreed to in writing, software?distributed 
 from __future__ import unicode_literals
 
 import logging
-from ..base.calendar import BaseExchangeCalendarEvent, BaseExchangeCalendarService, ExchangeEventOrganizer, ExchangeEventResponse
+from ..base.calendar import BaseExchangeCalendarEvent, BaseExchangeCalendarService, ExchangeEventOrganizer, \
+    ExchangeEventResponse, ExchangeExtendedProperty
 from ..base.contacts import BaseExchangeContactService, BaseExchangeContactItem
+from ..base.rooms import BaseExchangeRoomService, BaseExchangeRoomItem
 from ..base.folder import BaseExchangeFolder, BaseExchangeFolderService
 from ..base.mail import BaseExchangeMailService, BaseExchangeMailItem
 from ..base.tasks import BaseExchangeTaskService, BaseExchangeTaskItem
@@ -45,6 +47,9 @@ class Exchange2010Service(ExchangeServiceSOAP):
 
     def contacts(self, folder_id="contacts"):
         return Exchange2010ContactService(service=self, folder_id=folder_id)
+
+    def rooms(self):
+        return Exchange2010RoomService(service=self)
 
     def folder(self):
         return Exchange2010FolderService(service=self)
@@ -130,18 +135,70 @@ class Exchange2010Service(ExchangeServiceSOAP):
 
 
 class Exchange2010CalendarService(BaseExchangeCalendarService):
+    def folders(self):
+        return
 
     def event(self, id=None, **kwargs):
         return Exchange2010CalendarEvent(service=self.service, id=id, **kwargs)
 
-    def get_event(self, id):
-        return Exchange2010CalendarEvent(service=self.service, id=id)
+    def get_event(self, id, additional_properties=None):
+        return Exchange2010CalendarEvent(service=self.service, id=id, additional_properties=additional_properties)
 
     def new_event(self, **properties):
         return Exchange2010CalendarEvent(service=self.service, calendar_id=self.calendar_id, **properties)
 
-    def list_events(self, start=None, end=None, details=False, delegate_for=None):
-        return Exchange2010CalendarEventList(service=self.service, calendar_id=self.calendar_id, start=start, end=end, details=details, delegate_for=delegate_for)
+    def list_events(self, start=None, end=None, details=False, delegate_for=None, additional_properties=None):
+        return Exchange2010CalendarEventList(service=self.service, calendar_id=self.calendar_id, start=start, end=end,
+                                             details=details, delegate_for=delegate_for,
+                                             additional_properties=additional_properties)
+
+    def sync_events(self, delegate_for=None, sync_state=None):
+        return Exchange2010SyncCalendarEventList(service=self.service, calendar_id=self.calendar_id,
+                                                 delegate_for=delegate_for, sync_state=sync_state)
+
+
+class Exchange2010SyncCalendarEventList(object):
+    def __init__(self, service=None, calendar_id='calendar', delegate_for=None, sync_state=None):
+        self.service = service
+        self.delegate_for = delegate_for
+
+        self.created = []
+        self.updated = []
+        self.deleted = []
+        self.last_sync_state = None
+
+        body = soap_request.sync_calendar_items(
+            calendar_id=calendar_id, delegate_for=delegate_for, sync_state=sync_state
+        )
+
+        response_xml = self.service.send(body)
+
+        self._parse_response_for_all_events(response_xml)
+        self.contains_all_items = "true" == response_xml.xpath(
+            '//m:SyncFolderItemsResponseMessage/m:IncludesLastItemInRange',
+            namespaces=soap_request.NAMESPACES,
+        )[0].text
+
+        self.last_sync_state = response_xml.xpath(
+            '//m:SyncFolderItemsResponseMessage/m:SyncState',
+            namespaces=soap_request.NAMESPACES,
+        )[0].text
+
+    def _parse_response_for_all_events(self, response):
+        changes = response.xpath('//m:SyncFolderItemsResponseMessage/m:Changes', namespaces=soap_request.NAMESPACES)[0]
+
+        for create in changes.xpath('//t:Create/t:CalendarItem', namespaces=soap_request.NAMESPACES):
+            self.created.append(Exchange2010CalendarEvent(service=self.service,
+                                                          xml=soap_request.M.Items(deepcopy(create))))
+
+        for update in changes.xpath('//t:Update/t:CalendarItem', namespaces=soap_request.NAMESPACES):
+            self.updated.append(Exchange2010CalendarEvent(service=self.service,
+                                                          xml=soap_request.M.Items(deepcopy(update))))
+
+        for delete in changes.xpath('//t:Delete/t:ItemId/@Id', namespaces=soap_request.NAMESPACES):
+            self.deleted.append(delete)
+
+        return self
 
 
 class Exchange2010CalendarEventList(object):
@@ -149,7 +206,8 @@ class Exchange2010CalendarEventList(object):
     Creates & Stores a list of Exchange2010CalendarEvent items in the "self.events" variable.
     """
 
-    def __init__(self, service=None, calendar_id=u'calendar', start=None, end=None, details=False, delegate_for=None):
+    def __init__(self, service=None, calendar_id=u'calendar', start=None, end=None, details=False, delegate_for=None,
+                 additional_properties=None):
         self.service = service
         self.count = 0
         self.start = start
@@ -165,7 +223,7 @@ class Exchange2010CalendarEventList(object):
         body = soap_request.get_calendar_items(
             format=u'AllProperties', calendar_id=calendar_id,
             start=self.start, end=self.end, delegate_for=self.delegate_for,
-            max_entries=1000,
+            max_entries=1000, additional_properties=additional_properties
         )
         response_xml = self.service.send(body)
         self._parse_response_for_all_events(response_xml)
@@ -239,9 +297,10 @@ class Exchange2010CalendarEventList(object):
 
 class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
 
-    def _init_from_service(self, id):
+    def _init_from_service(self, id, additional_properties=None):
         log.debug(u'Creating new Exchange2010CalendarEvent object from ID')
-        body = soap_request.get_item(exchange_id=id, format=u'AllProperties')
+        body = soap_request.get_item(exchange_id=id, format=u'AllProperties',
+                                     additional_properties=additional_properties)
         response_xml = self.service.send(body)
         properties = self._parse_response_for_get_event(response_xml)
 
@@ -572,6 +631,8 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
 
         result['_conflicting_event_ids'] = self._parse_event_conflicts(response)
 
+        self.xml = response
+
         return result
 
     def _parse_event_properties(self, response):
@@ -594,6 +655,17 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
                 u'xpath': u'//m:Items/t:CalendarItem/t:End',
                 u'cast': u'datetime',
             },
+            u'timezone': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:TimeZone',
+            },
+            u'date_time_created': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:DateTimeCreated',
+                u'cast': u'datetime',
+            },
+            u'cancelled': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:IsCancelled',
+                u'cast': u'bool',
+            },
             u'html_body': {
                 u'xpath': u'//m:Items/t:CalendarItem/t:Body[@BodyType="HTML"]',
             },
@@ -607,9 +679,23 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
                 u'xpath': u'//m:Items/t:CalendarItem/t:ReminderMinutesBeforeStart',
                 u'cast': u'int',
             },
+            u'reminder_is_set': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:ReminderIsSet',
+                u'cast': u'bool',
+            },
+            u'last_modified_at': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:LastModifiedTime',
+                u'cast': u'datetime',
+            },
             u'is_all_day': {
                 u'xpath': u'//m:Items/t:CalendarItem/t:IsAllDayEvent',
                 u'cast': u'bool',
+            },
+            u'conversation_id': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:ConversationId/@Id',
+            },
+            u'recurrence_id': {
+                u'xpath': u'//m:Items/t:CalendarItem/t:RecurrenceId',
             },
             u'recurrence_end_date': {
                 u'xpath': u'//m:Items/t:CalendarItem/t:Recurrence/t:EndDateRecurrence/t:EndDate',
@@ -621,7 +707,7 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
             },
             u'recurrence_days': {
                 u'xpath': u'//m:Items/t:CalendarItem/t:Recurrence/t:WeeklyRecurrence/t:DaysOfWeek',
-            },
+            }
         }
 
         result = self.service._xpath_to_dict(element=response, property_map=property_map, namespace_map=soap_request.NAMESPACES)
@@ -644,6 +730,21 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
 
             elif recurrence_node.find('t:AbsoluteYearlyRecurrence', namespaces=soap_request.NAMESPACES) is not None:
                 result['recurrence'] = 'yearly'
+
+        extended_property_nodes = response.xpath(u'//m:Items/t:CalendarItem/t:ExtendedProperty',
+                                                 namespaces=soap_request.NAMESPACES)
+
+        for extended_property in extended_property_nodes:
+            uri = extended_property.find('t:ExtendedFieldURI', namespaces=soap_request.NAMESPACES)
+            if uri is not None:
+                if not result.get('extended_properties'):
+                    result['extended_properties'] = []
+
+                result['extended_properties'].append(ExchangeExtendedProperty(
+                    distinguished_property_set_id=uri.get('DistinguishedPropertySetId'),
+                    property_name=uri.get('PropertyName'), property_type=uri.get('PropertyType'),
+                    value=extended_property.findtext('t:Value', namespaces=soap_request.NAMESPACES))
+                )
 
         return result
 
@@ -963,10 +1064,48 @@ class Exchange2010Folder(BaseExchangeFolder):
         self._parent_id = self._parse_parent_id_and_change_key_from_response(response)[0]
         self.folder_type = etree.QName(response).localname
 
-        return self.service._xpath_to_dict(
+        result = self.service._xpath_to_dict(
             element=response, property_map=property_map,
             namespace_map=soap_request.NAMESPACES
         )
+
+        effective_rights = {
+            'delete': {
+                'xpath': 't:Delete',
+                'cast': 'bool',
+            },
+            'modify': {
+                'xpath': 't:Modify',
+                'cast': 'bool',
+            },
+            'read': {
+                'xpath': 't:Read',
+                'cast': 'bool',
+            },
+            'create_contents': {
+                'xpath': 't:CreateContents',
+                'cast': 'bool',
+            },
+            'create_hierarchy': {
+                'xpath': 't:CreateHierarchy',
+                'cast': 'bool',
+            },
+            'create_associated': {
+                'xpath': 't:CreateAssociated',
+                'cast': 'bool',
+            }
+        }
+
+        effective_rights_element = response.xpath('t:EffectiveRights', namespaces=soap_request.NAMESPACES)[0]
+
+        result.update({
+            'effective_rights': self.service._xpath_to_dict(
+                element=effective_rights_element, property_map=effective_rights,
+                namespace_map=soap_request.NAMESPACES
+            )
+        })
+
+        return result
 
     def _parse_id_and_change_key_from_response(self, response):
 
@@ -989,6 +1128,92 @@ class Exchange2010Folder(BaseExchangeFolder):
             return id_element.get(u"Id", None), id_element.get(u"ChangeKey", None)
         else:
             return None, None
+
+
+class Exchange2010RoomService(BaseExchangeRoomService):
+    def get_all_rooms(self):
+        return Exchange2010RoomList(service=self.service)
+
+
+class Exchange2010RoomList(object):
+    """
+    Creates & Stores a list of Exchange2010RoomItem objects in the
+    "self.items" variable.
+    """
+    def __init__(self, service, xml_result=None):
+        self.service = service
+        self.count = None
+        self._items = None
+
+        if xml_result is not None:
+            self._items = self._parse_response_for_all_rooms(xml_result)
+            self.count = len(self._items)
+
+    @property
+    def items(self):
+        """
+        Iterable of contact items. If the list has been initialized with a
+        pre-fetched XML response, this just iterates over self._items,
+        otherwise it's a generator that fetches batches of contacts from
+        Exchange on demand.
+        """
+        if self._items is not None:
+            for item in self._items:
+                yield item
+            return
+
+        offset = 0
+        # while True:
+        body = soap_request.get_rooms_items()
+        xml_result = self.service.send(body)
+
+            # last_batch = "true" == xml_result.xpath(
+            #     '//m:RootFolder/@IncludesLastItemInRange',
+            #     namespaces=soap_request.NAMESPACES,
+            # )[0]
+            # self.count = int(xml_result.xpath(
+            #     '//m:RootFolder/@TotalItemsInView',
+            #     namespaces=soap_request.NAMESPACES,
+            # )[0])
+            # offset = int(xml_result.xpath(
+            #     '//m:RootFolder/@IndexedPagingOffset',
+            #     namespaces=soap_request.NAMESPACES,
+            # )[0])
+            #
+            # batch = self._parse_response_for_all_contacts(xml_result)
+            #
+            # for t in batch:
+            #     yield t
+            #
+            # if last_batch:
+            #     return
+
+    def _parse_response_for_all_rooms(self, xml):
+        contacts = xml.xpath(u'//t:Items/t:Contact',
+                             namespaces=soap_request.NAMESPACES)
+        if not contacts:
+            log.debug(u'No contacts returned.')
+            return []
+
+        items = []
+        for contact_xml in contacts:
+            log.debug(u'Adding contact item to contact list...')
+            contact = Exchange2010ContactItem(service=self.service,
+                                              folder_id=self.folder_id,
+                                              xml=contact_xml)
+            log.debug(u'Added contact with id %s and display name %s.',
+                      contact.id, contact.display_name)
+            items.append(contact)
+
+        return items
+
+    def __repr__(self):
+        if self._items is None:
+            return "<Exchange2010RoomList: lazy>"
+
+        return "<Exchange2010RoomList: [{}]>".format(
+            ', '.join(repr(item) for item in self.items),
+        )
 
 
 class Exchange2010ContactService(BaseExchangeContactService):
@@ -1044,7 +1269,7 @@ class Exchange2010ContactList(object):
         Exchange on demand.
         """
         if self._items is not None:
-            for item in self._item:
+            for item in self._items:
                 yield item
             return
 

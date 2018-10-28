@@ -14,6 +14,7 @@ from pytz import utc
 
 
 from ..exceptions import FailedExchangeException
+from ..compat import IS_PYTHON3
 
 SOAP_NS = u'http://schemas.xmlsoap.org/soap/envelope/'
 
@@ -22,15 +23,20 @@ S = ElementMaker(namespace=SOAP_NS, nsmap=SOAP_NAMESPACES)
 
 log = logging.getLogger('pyexchange')
 
+if IS_PYTHON3:
+    unichr = chr
+
 
 def remove_control_characters(html):
     def str_to_int(s, default, base=10):
         if int(s, base) < 0x10000:
             return unichr(int(s, base))
         return default
-    html = re.sub(ur'&#(\d+);?', lambda c: str_to_int(c.group(1), c.group(0)), html)
-    html = re.sub(ur'&#[xX]([0-9a-fA-F]+);?', lambda c: str_to_int(c.group(1), c.group(0), base=16), html)
-    html = re.sub(ur'[\x00-\x08\x0b\x0e-\x1f\x7f]', '', html)
+
+    html = re.sub(u'&#(\\d+);?', lambda c: str_to_int(c.group(1), c.group(0)), html)
+    html = re.sub(u'&#[xX]([0-9a-fA-F]+);?', lambda c: str_to_int(c.group(1), c.group(0), base=16), html)
+    html = re.sub(u'[\\x00-\\x08\\x0b\\x0e-\\x1f\\x7f]', '', html)
+
     return html
 
 

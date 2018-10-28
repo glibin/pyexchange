@@ -113,7 +113,7 @@ def convert_id(id_value, destination_format, format=u'EwsId',
     )
 
 
-def get_item(exchange_id, format=u"Default"):
+def get_item(exchange_id, format=u"Default", additional_properties=None):
     """
       Requests a calendar item from the store.
 
@@ -143,9 +143,25 @@ def get_item(exchange_id, format=u"Default"):
     else:
         elements = [T.ItemId(Id=exchange_id)]
 
+    if additional_properties:
+        additional_properties = list(map(
+            lambda x: T.ExtendedFieldURI(
+                DistinguishedPropertySetId=x.distinguished_property_set_id,
+                PropertyName=x.property_name,
+                PropertyType=x.property_type),
+            additional_properties if isinstance(additional_properties, list) else [additional_properties]
+        ))
+    else:
+        additional_properties = []
+
+    shapes = [T.BaseShape(format)]
+
+    if additional_properties:
+        shapes.append(T.AdditionalProperties(*additional_properties))
+
     root = M.GetItem(
         M.ItemShape(
-            T.BaseShape(format)
+            *shapes
         ),
         M.ItemIds(
             *elements
@@ -153,9 +169,10 @@ def get_item(exchange_id, format=u"Default"):
     )
     return root
 
+
 def get_calendar_items(format=u"Default", calendar_id=u'calendar',
                        start=None, end=None, max_entries=1000,
-                       delegate_for=None):
+                       delegate_for=None, additional_properties=None):
     start = start.strftime(EXCHANGE_DATETIME_FORMAT)
     end = end.strftime(EXCHANGE_DATETIME_FORMAT)
 
@@ -172,10 +189,26 @@ def get_calendar_items(format=u"Default", calendar_id=u'calendar',
     else:
         target = M.ParentFolderIds(T.FolderId(Id=calendar_id))
 
+    if additional_properties:
+        additional_properties = list(map(
+            lambda x: T.ExtendedFieldURI(
+                DistinguishedPropertySetId=x.distinguished_property_set_id,
+                PropertyName=x.property_name,
+                PropertyType=x.property_type),
+            additional_properties if isinstance(additional_properties, list) else [additional_properties]
+        ))
+    else:
+        additional_properties = []
+
+    shapes = [T.BaseShape(format)]
+
+    if additional_properties:
+        shapes.append(T.AdditionalProperties(*additional_properties))
+
     root = M.FindItem(
-        {u'Traversal': u'Shallow'},
+        {'Traversal': 'Shallow'},
         M.ItemShape(
-            T.BaseShape(format)
+            *shapes
         ),
         M.CalendarView({
             u'MaxEntriesReturned': _unicode(max_entries),
@@ -186,6 +219,36 @@ def get_calendar_items(format=u"Default", calendar_id=u'calendar',
         )
 
     return root
+
+
+def sync_calendar_items(calendar_id='calendar', format='Default', delegate_for=None, sync_state=None):
+    if calendar_id == 'calendar':
+        if delegate_for is None:
+            target = M.SyncFolderId(T.DistinguishedFolderId(Id=calendar_id))
+        else:
+            target = M.SyncFolderId(
+                T.DistinguishedFolderId(
+                    {'Id': 'calendar'},
+                    T.Mailbox(T.EmailAddress(delegate_for))
+                )
+            )
+    else:
+        target = M.SyncFolderId(T.FolderId(Id=calendar_id))
+
+    items = [M.ItemShape(T.BaseShape(format)), target, M.MaxChangesReturned('512')]
+
+    if sync_state:
+        items.append(M.SyncState(sync_state))
+
+    root = M.SyncFolderItems(
+        *items
+    )
+
+    return root
+
+
+def get_rooms_items():
+    return M.GetRoomLists()
 
 
 def find_contact_items(folder_id, initial_name=None, final_name=None,
@@ -447,7 +510,7 @@ def new_event(event):
         M.Items(
             T.CalendarItem(
                 T.Subject(event.subject),
-                T.Body(event.body or u'', BodyType="HTML"),
+                T.Body(event.text_body or u'', BodyType="Text"),
                 )
         ),
         SendMeetingInvitations="SendToAllAndSaveCopy"
@@ -467,6 +530,9 @@ def new_event(event):
     if event.is_all_day:
         calendar_node.append(T.IsAllDayEvent('true'))
 
+    if event.created:
+        calendar_node.append(T.DateTimeCreated(convert_datetime_to_utc(event.created)))
+
     calendar_node.append(T.Location(event.location or u''))
 
     if event.required_attendees:
@@ -477,6 +543,15 @@ def new_event(event):
 
     if event.resources:
         calendar_node.append(resource_node(element=T.Resources(), resources=event.resources))
+
+    if event.extended_properties:
+        for extended_property in event.extended_properties:
+            calendar_node.append(T.ExtendedProperty(
+                T.ExtendedFieldURI(DistinguishedPropertySetId=extended_property.distinguished_property_set_id,
+                                   PropertyName=extended_property.property_name,
+                                   PropertyType=extended_property.property_type),
+                T.Value(extended_property.value),
+            ))
 
     if event.recurrence:
 
