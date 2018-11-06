@@ -247,7 +247,7 @@ def sync_calendar_items(calendar_id='calendar', format='Default', delegate_for=N
     return root
 
 
-def get_rooms_items():
+def get_room_lists():
     return M.GetRoomLists()
 
 

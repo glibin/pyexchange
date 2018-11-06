@@ -1131,79 +1131,49 @@ class Exchange2010Folder(BaseExchangeFolder):
 
 
 class Exchange2010RoomService(BaseExchangeRoomService):
-    def get_all_rooms(self):
-        return Exchange2010RoomList(service=self.service)
+    def get_room_lists(self):
+        return Exchange2010RoomLists(service=self.service)
 
 
-class Exchange2010RoomList(object):
-    """
-    Creates & Stores a list of Exchange2010RoomItem objects in the
-    "self.items" variable.
-    """
+class Exchange2010RoomLists(object):
     def __init__(self, service, xml_result=None):
         self.service = service
         self.count = None
         self._items = None
 
         if xml_result is not None:
-            self._items = self._parse_response_for_all_rooms(xml_result)
+            self._items = self._parse_response_for_all_room_lists(xml_result)
             self.count = len(self._items)
 
     @property
     def items(self):
-        """
-        Iterable of contact items. If the list has been initialized with a
-        pre-fetched XML response, this just iterates over self._items,
-        otherwise it's a generator that fetches batches of contacts from
-        Exchange on demand.
-        """
         if self._items is not None:
             for item in self._items:
                 yield item
             return
 
-        offset = 0
-        # while True:
-        body = soap_request.get_rooms_items()
+        body = soap_request.get_room_lists()
         xml_result = self.service.send(body)
 
-            # last_batch = "true" == xml_result.xpath(
-            #     '//m:RootFolder/@IncludesLastItemInRange',
-            #     namespaces=soap_request.NAMESPACES,
-            # )[0]
-            # self.count = int(xml_result.xpath(
-            #     '//m:RootFolder/@TotalItemsInView',
-            #     namespaces=soap_request.NAMESPACES,
-            # )[0])
-            # offset = int(xml_result.xpath(
-            #     '//m:RootFolder/@IndexedPagingOffset',
-            #     namespaces=soap_request.NAMESPACES,
-            # )[0])
-            #
-            # batch = self._parse_response_for_all_contacts(xml_result)
-            #
-            # for t in batch:
-            #     yield t
-            #
-            # if last_batch:
-            #     return
+        batch = self._parse_response_for_all_room_lists(xml_result)
+        for t in batch:
+            yield t
 
-    def _parse_response_for_all_rooms(self, xml):
-        contacts = xml.xpath(u'//t:Items/t:Contact',
-                             namespaces=soap_request.NAMESPACES)
-        if not contacts:
-            log.debug(u'No contacts returned.')
+    def _parse_response_for_all_room_lists(self, xml):
+        room_lists = xml.xpath(u'//m:RoomLists/t:Address',
+                               namespaces=soap_request.NAMESPACES)
+        if not room_lists:
+            log.debug(u'No rooms returned.')
             return []
 
         items = []
-        for contact_xml in contacts:
-            log.debug(u'Adding contact item to contact list...')
-            contact = Exchange2010ContactItem(service=self.service,
-                                              folder_id=self.folder_id,
-                                              xml=contact_xml)
-            log.debug(u'Added contact with id %s and display name %s.',
-                      contact.id, contact.display_name)
-            items.append(contact)
+        for room_list_xml in room_lists:
+            log.debug(u'Adding room item to room list...')
+            room_list = Exchange2010RoomListItem(service=self.service,
+                                                 xml=room_list_xml)
+            log.debug(u'Added room list with name %s and email address %s.',
+                      room_list.name, room_list.email_address)
+            items.append(room_list)
 
         return items
 
@@ -1214,6 +1184,57 @@ class Exchange2010RoomList(object):
         return "<Exchange2010RoomList: [{}]>".format(
             ', '.join(repr(item) for item in self.items),
         )
+
+
+class Exchange2010RoomListItem(object):
+    name = None
+    email_address = None
+    routing_type = None
+    mailbox_type = None
+
+    def __init__(self, service, xml=None, **kwargs):
+        self.service = service
+
+        if xml is not None:
+            self._init_from_xml(xml)
+
+    def _init_from_xml(self, xml):
+        properties = self._parse_room_properties(xml)
+
+        self._update_properties(properties)
+
+        return self
+
+    def _update_properties(self, properties):
+        for key in properties:
+            setattr(self, key, properties[key])
+
+    def _parse_room_properties(self, response):
+        # Use relative selectors here so that we can call this in the
+        # context of each Contact element without deepcopying.
+        property_map = {
+            u'name': {
+                u'xpath': u'//t:Name',
+            },
+            u'email_address': {
+                u'xpath': u'//t:EmailAddress',
+            },
+            u'routing_type': {
+                u'xpath': u'//t:RoutingType',
+            },
+            u'mailbox_type': {
+                u'xpath': u'//t:MailboxType',
+            }
+        }
+
+        return self.service._xpath_to_dict(
+            element=response, property_map=property_map,
+            namespace_map=soap_request.NAMESPACES,
+        )
+
+    def __repr__(self):
+        return "<Exchange2010RoomListItem: {}>".format(self.name.encode('utf-8'))
+
 
 
 class Exchange2010ContactService(BaseExchangeContactService):
