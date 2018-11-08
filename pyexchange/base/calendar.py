@@ -6,6 +6,10 @@ Unless required by applicable law or agreed to in writing, software?distributed 
 """
 from collections import namedtuple
 
+ExchangeExtendedProperty = namedtuple('ExchangeExtendedProperty', ['distinguished_property_set_id', 'property_name',
+                                                                   'property_type', 'value'])
+ExchangeExtendedFieldURI = namedtuple('ExchangeExtendedFieldURI', ['distinguished_property_set_id', 'property_name',
+                                                                   'property_type'])
 ExchangeEventOrganizer = namedtuple('ExchangeEventOrganizer', ['name', 'email'])
 ExchangeEventAttendee = namedtuple('ExchangeEventAttendee', ['name', 'email', 'required'])
 ExchangeEventResponse = namedtuple('ExchangeEventResponse', ['name', 'email', 'response', 'last_response', 'required'])
@@ -51,9 +55,13 @@ class BaseExchangeCalendarEvent(object):
     text_body = None
     attachments = None
     organizer = None
+    timezone = None
     reminder_minutes_before_start = None
     is_all_day = None
+    created = None
+    _extended_properties = []
 
+    recurrence_id = None
     recurrence = None
     recurrence_end_date = None
     recurrence_days = None
@@ -72,9 +80,9 @@ class BaseExchangeCalendarEvent(object):
     # these attributes can be pickled, or output as JSON
     DATA_ATTRIBUTES = [
         u'_id', u'subject', u'start', u'end', u'location', u'html_body', u'text_body', u'organizer',
-        u'_attendees', u'_resources', u'reminder_minutes_before_start', u'is_all_day',
-        'recurrence', 'recurrence_interval', 'recurrence_days', 'recurrence_day',
-        ]
+        u'_attendees', u'_resources', u'reminder_minutes_before_start', u'is_all_day', 'recurrence_id', 'timezone',
+        'recurrence', 'recurrence_interval', 'recurrence_days', 'recurrence_day', 'created', '_extended_properties'
+    ]
 
     RECURRENCE_ATTRIBUTES = [
         'recurrence', 'recurrence_end_date', 'recurrence_days', 'recurrence_interval',
@@ -82,7 +90,7 @@ class BaseExchangeCalendarEvent(object):
 
     WEEKLY_DAYS = [u'Sunday', u'Monday', u'Tuesday', u'Wednesday', u'Thursday', u'Friday', u'Saturday']
 
-    def __init__(self, service, id=None, calendar_id=u'calendar', xml=None, **kwargs):
+    def __init__(self, service, id=None, calendar_id=u'calendar', xml=None, additional_properties=None, **kwargs):
         self.service = service
         self.calendar_id = calendar_id
 
@@ -91,17 +99,26 @@ class BaseExchangeCalendarEvent(object):
         elif id is None:
             self._update_properties(kwargs)
         else:
-            self._init_from_service(id)
+            self._init_from_service(id, additional_properties=additional_properties)
 
         self._track_dirty_attributes = True  # magically look for changed attributes
 
-    def _init_from_service(self, id):
+    def _init_from_service(self, id, additional_properties=None):
         """ Connect to the Exchange service and grab all the properties out of it. """
         raise NotImplementedError
 
     def _init_from_xml(self, xml):
         """ Using already retrieved XML from Exchange, extract properties out of it. """
         raise NotImplementedError
+
+    @property
+    def extended_properties(self):
+        return self._extended_properties
+
+    @extended_properties.setter
+    def extended_properties(self, extended_properties):
+        self._extended_properties = self._build_extended_properties(extended_properties)
+        self._dirty_attributes.add('extended_properties')
 
     @property
     def id(self):
@@ -350,6 +367,22 @@ class BaseExchangeCalendarEvent(object):
         for attribute in self.DATA_ATTRIBUTES:
             state[attribute] = getattr(self, attribute, None)
         return state
+
+    def _build_extended_properties(self, extended_properties):
+        result = []
+
+        item_list = extended_properties if isinstance(extended_properties, list) else [extended_properties]
+
+        for item in item_list:
+            if isinstance(item, ExchangeExtendedProperty):
+                result.append(item)
+            else:
+                result.append(ExchangeExtendedProperty(distinguished_property_set_id=item.get('distinguished_property_set_id'),
+                                                       property_name=item.get('property_name'),
+                                                       property_type=item.get('property_type') or 'String',
+                                                       value=item.get('value') or ''))
+
+        return result
 
     def _build_resource_dictionary(self, resources, required=True):
         result = {}
