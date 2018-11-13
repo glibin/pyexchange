@@ -156,6 +156,36 @@ class Exchange2010CalendarService(BaseExchangeCalendarService):
         return Exchange2010SyncCalendarEventList(service=self.service, calendar_id=self.calendar_id,
                                                  delegate_for=delegate_for, sync_state=sync_state)
 
+    def get_user_availability(self, attendees, start, end):
+        return Exchange2010UserAvailabilityList(self.service, attendees, start, end)
+
+
+class Exchange2010UserAvailabilityList(object):
+    def __init__(self, service, attendees, start, end):
+        self.service = service
+        self.attendees = attendees
+        body = soap_request.get_user_availability(attendees or [], start, end)
+
+        response_xml = self.service.send(body, check_for_errors=False)
+
+        self._parse_response_for_results(response_xml)
+
+    def _parse_response_for_results(self, response):
+        for i, free_busy_view in enumerate(response.xpath(
+                '//m:GetUserAvailabilityResponse/m:FreeBusyResponseArray/m:FreeBusyResponse/m:FreeBusyView',
+                namespaces=soap_request.NAMESPACES)):
+
+            self.attendees[i]['busy'] = []
+
+            for calendar_event in free_busy_view.xpath('t:CalendarEventArray/t:CalendarEvent',
+                                                       namespaces=soap_request.NAMESPACES):
+
+                self.attendees[i]['busy'].append(dict(
+                    start_time=calendar_event.findtext('t:StartTime', namespaces=soap_request.NAMESPACES),
+                    end_time=calendar_event.findtext('t:EndTime', namespaces=soap_request.NAMESPACES),
+                    busy_type=calendar_event.findtext('t:BusyType', namespaces=soap_request.NAMESPACES),
+                ))
+
 
 class Exchange2010SyncCalendarEventList(object):
     def __init__(self, service=None, calendar_id='calendar', delegate_for=None, sync_state=None):

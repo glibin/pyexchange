@@ -1021,3 +1021,19 @@ def create_mime_email(subject, mime, recipients, cc_recipients, bcc_recipients, 
         )
 
         , MessageDisposition=disposition)
+
+
+def get_user_availability(attendees, start, end):
+    start = convert_datetime_to_utc(start)
+    end = convert_datetime_to_utc(end)
+
+    array = M.MailboxDataArray(*list(map(lambda x: T.MailboxData(T.Email(T.Address(x['email']))), attendees)))
+
+    return M.GetUserAvailabilityRequest(
+        T.TimeZone(T.Bias('0')),
+        array,
+        T.FreeBusyViewOptions(T.TimeWindow(
+            T.StartTime(start.strftime(EXCHANGE_DATETIME_FORMAT)),
+            T.EndTime(end.strftime(EXCHANGE_DATETIME_FORMAT))
+        ), T.RequestedView('FreeBusy'), T.MergedFreeBusyIntervalInMinutes('30'))
+    )
