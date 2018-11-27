@@ -550,8 +550,8 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
 
         """
 
-        if self.type != 'Occurrence':
-            raise InvalidEventType("get_master method can only be called on a 'Occurrence' event type")
+        if self.type not in ['Occurrence', 'Exception']:
+            raise InvalidEventType("get_master method can only be called on a 'Occurrence' or 'Exception' event type, '{}' received".format(self.type))
 
         body = soap_request.get_master(exchange_id=self._id, format=u"AllProperties")
         response_xml = self.service.send(body)
