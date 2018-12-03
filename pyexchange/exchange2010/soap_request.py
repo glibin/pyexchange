@@ -1030,7 +1030,10 @@ def get_user_availability(attendees, start, end):
     array = M.MailboxDataArray(*list(map(lambda x: T.MailboxData(T.Email(T.Address(x['email']))), attendees)))
 
     return M.GetUserAvailabilityRequest(
-        T.TimeZone(T.Bias('0'), T.StandardTime(T.Bias('0'), T.Time('00:00:00'), T.DayOrder('1'), T.Month('1'), T.DayOfWeek('Sunday'))),
+        T.TimeZone(T.Bias('0'),
+                   T.StandardTime(T.Bias('0'), T.Time('00:00:00'), T.DayOrder('1'), T.Month('1'), T.DayOfWeek('Sunday')),
+                   T.DaylightTime(T.Bias('0'), T.Time('00:00:00'), T.DayOrder('1'), T.Month('10'), T.DayOfWeek('Sunday'))
+                   ),
         array,
         T.FreeBusyViewOptions(T.TimeWindow(
             T.StartTime(start.strftime(EXCHANGE_DATETIME_FORMAT)),
