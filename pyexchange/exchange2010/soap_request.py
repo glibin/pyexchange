@@ -1031,12 +1031,12 @@ def get_user_availability(attendees, start, end):
 
     return M.GetUserAvailabilityRequest(
         T.TimeZone(T.Bias('0'),
-                   T.StandardTime(T.Bias('0'), T.Time('00:00:00'), T.DayOrder('1'), T.Month('1'), T.DayOfWeek('Sunday')),
-                   T.DaylightTime(T.Bias('0'), T.Time('00:00:00'), T.DayOrder('1'), T.Month('10'), T.DayOfWeek('Sunday'))
+                   T.StandardTime(T.Bias('0'), T.Time('00:00:00'), T.DayOrder('0'), T.Month('0'), T.DayOfWeek('Sunday')),
+                   T.DaylightTime(T.Bias('0'), T.Time('00:00:00'), T.DayOrder('0'), T.Month('0'), T.DayOfWeek('Sunday'))
                    ),
         array,
         T.FreeBusyViewOptions(T.TimeWindow(
             T.StartTime(start.strftime(EXCHANGE_DATETIME_FORMAT)),
             T.EndTime(end.strftime(EXCHANGE_DATETIME_FORMAT))
-        ), T.RequestedView('FreeBusy'), T.MergedFreeBusyIntervalInMinutes('30'))
+        ), T.RequestedView('FreeBusy'))
     )
