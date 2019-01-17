@@ -251,6 +251,10 @@ def get_room_lists():
     return M.GetRoomLists()
 
 
+def get_rooms(email):
+    return M.GetRooms(M.RoomList(T.EmailAddress(email)))
+
+
 def find_contact_items(folder_id, initial_name=None, final_name=None,
                        max_entries=100, **kwargs):
     root = find_items(folder_id, **kwargs)
