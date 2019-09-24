@@ -66,7 +66,11 @@ class ExchangeNTLMAuthConnection(ExchangeBaseConnection):
                                          verify=self.verify_certificate, timeout=timeout)
             response.raise_for_status()
         except requests.exceptions.RequestException as err:
+            log.debug(u'Sent headers: {headers}'.format(headers=headers))
+            log.debug(body)
+            log.debug(getattr(err.response, 'headers', 'No headers.'))
             log.debug(getattr(err.response, 'content', 'No response.'))
+
             raise FailedExchangeException(u'Unable to connect to Exchange: %s' % err)
 
         log.info(u'Got response: {code}'.format(code=response.status_code))
@@ -120,7 +124,11 @@ class ExchangeBasicAuthConnection(ExchangeBaseConnection):
                                          verify=self.verify_certificate, timeout=timeout)
             response.raise_for_status()
         except requests.exceptions.RequestException as err:
+            log.debug(u'Sent headers: {headers}'.format(headers=headers))
+            log.debug(body)
+            log.debug(getattr(err.response, 'headers', 'No headers.'))
             log.debug(getattr(err.response, 'content', 'No response.'))
+
             raise FailedExchangeException(u'Unable to connect to Exchange: %s' % err)
 
         log.info(u'Got response: {code}'.format(code=response.status_code))
