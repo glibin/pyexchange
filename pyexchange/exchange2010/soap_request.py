@@ -847,16 +847,30 @@ def create_attachment(parent_id, change_key, attachments):
       <t:FileAttachment>
         <t:Name>SomeFile</t:Name>
         <t:Content>AQIDBAU=</t:Content>
+        <t:IsInline>false</t:IsInline>
+        <t:ContentId>f_k1jtd87b1</t:ContentId>
       </t:FileAttachment>
     </Attachments>
     </CreateAttachment>
     """
-    return M.CreateAttachment(
-        M.ParentItemId(Id=parent_id, ChangeKey=change_key),
-        M.Attachments(*[T.FileAttachment(
+    file_attachments = []
+    for attachment in attachments:
+        children_tags = [
             T.Name(attachment['name']),
             T.Content(base64.standard_b64encode(attachment['content'])),
-        ) for attachment in attachments])
+        ]
+        if 'is_inline' in attachment:
+            is_inline = 'true' if attachment['is_inline'] else 'false'
+            children_tags.append(T.IsInline(is_inline))
+        if 'content_id' in attachment:
+            content_id = str(attachment['content_id'])
+            children_tags.append(T.ContentId(content_id))
+
+        file_attachments.append(T.FileAttachment(*children_tags))
+
+    return M.CreateAttachment(
+        M.ParentItemId(Id=parent_id, ChangeKey=change_key),
+        M.Attachments(*file_attachments)
     )
 
 
