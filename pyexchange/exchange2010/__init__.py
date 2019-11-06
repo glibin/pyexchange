@@ -1587,8 +1587,8 @@ class Exchange2010MailService(BaseExchangeMailService):
     def get_mail(self, id):
         return Exchange2010MailItem(service=self.service, id=id)
 
-    def list_mails(self):
-        return Exchange2010MailList(service=self.service, folder_id=self.folder_id)
+    def list_mails(self, idonly=False):
+        return Exchange2010MailList(service=self.service, folder_id=self.folder_id, idonly=idonly)
 
     def get_attachment(self, attachment_id):
         """
@@ -1766,9 +1766,10 @@ class Exchange2010MailService(BaseExchangeMailService):
 
 
 class Exchange2010MailList(object):
-    def __init__(self, service=None, folder_id=u'inbox', xml_result=None):
+    def __init__(self, service=None, folder_id=u'inbox', xml_result=None, idonly=False):
         self.service = service
         self.folder_id = folder_id
+        self.idonly = idonly
         self._items = None
         self.count = None
 
@@ -1794,7 +1795,7 @@ class Exchange2010MailList(object):
         while True:
             body = soap_request.find_items(
                 folder_id=self.folder_id, limit=self.service.batch_size,
-                offset=offset, format=u'AllProperties'
+                offset=offset, format=u'IdOnly' if self.idonly else u'AllProperties'
             )
             xml_result = self.service.send(body)
             last_batch = "true" == xml_result.xpath(
@@ -1811,7 +1812,8 @@ class Exchange2010MailList(object):
             )[0])
 
             batch = self._parse_response_for_all_mails(xml_result)
-            self.load_extended_properties(batch)
+            if not self.idonly:
+                self.load_extended_properties(batch)
 
             for t in batch:
                 yield t
