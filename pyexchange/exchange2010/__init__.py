@@ -36,11 +36,12 @@ NotificationSubscription = namedtuple('NotificationSubscription',
 
 
 class Exchange2010Service(ExchangeServiceSOAP):
-    def __init__(self, connection, batch_size=1000, impersonate_sid=None):
+    def __init__(self, connection, batch_size=1000, impersonate_sid=None, impersonate_smtp=None):
         super(Exchange2010Service, self).__init__(connection)
         # The size of batches requested for paginated result sets.
         self.batch_size = batch_size
         self.impersonate_sid = impersonate_sid
+        self.impersonate_smtp = impersonate_smtp
 
     def calendar(self, id="calendar"):
         return Exchange2010CalendarService(service=self, calendar_id=id)
@@ -84,11 +85,16 @@ class Exchange2010Service(ExchangeServiceSOAP):
                 Version="Exchange2010",
             ),
         )
-        if self.impersonate_sid:
+        if self.impersonate_sid or self.impersonate_smtp:
+            if self.impersonate_smtp:
+                impersonate = soap_request.T.PrimarySmtpAddress(self.impersonate_smtp)
+            else:
+                impersonate = soap_request.T.SID(self.impersonate_sid)
+
             header.append(
                 soap_request.T.ExchangeImpersonation(
                     soap_request.T.ConnectingSID(
-                        soap_request.T.SID(self.impersonate_sid),
+                        impersonate,
                     ),
                 ),
             )
