@@ -771,7 +771,7 @@ def update_item(event, updated_attributes, calendar_item_update_operation_type):
 
     if u'sensitivity' in updated_attributes:
         update_node.append(
-            update_property_node(field_uri="calendar:Sensitivity", node_to_insert=T.Sensitivity(event.sensitivity)
+            update_property_node(field_uri="item:Sensitivity", node_to_insert=T.Sensitivity(event.sensitivity)
         ))
 
     for attr in event.RECURRENCE_ATTRIBUTES:
