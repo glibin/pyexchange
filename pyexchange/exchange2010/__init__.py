@@ -702,6 +702,10 @@ class Exchange2010CalendarEvent(BaseExchangeCalendarEvent):
                 u'xpath': u'//m:Items/t:CalendarItem/t:IsCancelled',
                 u'cast': u'bool',
             },
+            u'sensitivity':
+            {
+                u'xpath': u'//m:Items/t:CalendarItem/t:Sensitivity',
+            },
             u'html_body': {
                 u'xpath': u'//m:Items/t:CalendarItem/t:Body[@BodyType="HTML"]',
             },

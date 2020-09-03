@@ -469,6 +469,7 @@ def new_event(event):
               <t:Body BodyType="HTML">{event.subject}</t:Body>
               <t:Start></t:Start>
               <t:End></t:End>
+              <t:Sensitivity></t:Sensitivity>
               <t:Location></t:Location>
               <t:RequiredAttendees>
                   {% for attendee_email in meeting.required_attendees %}
@@ -538,6 +539,8 @@ def new_event(event):
         calendar_node.append(T.DateTimeCreated(convert_datetime_to_utc(event.created)))
 
     calendar_node.append(T.Location(event.location or u''))
+
+    calendar_node.append(T.Sensitivity(event.sensitivity))
 
     if event.required_attendees:
         calendar_node.append(resource_node(element=T.RequiredAttendees(), resources=event.required_attendees))
@@ -765,6 +768,11 @@ def update_item(event, updated_attributes, calendar_item_update_operation_type):
         update_node.append(
             update_property_node(field_uri="calendar:IsAllDayEvent", node_to_insert=T.IsAllDayEvent(str(event.is_all_day).lower()))
         )
+
+    if u'sensitivity' in updated_attributes:
+        update_node.append(
+            update_property_node(field_uri="item:Sensitivity", node_to_insert=T.Sensitivity(event.sensitivity)
+        ))
 
     for attr in event.RECURRENCE_ATTRIBUTES:
         if attr in updated_attributes:
