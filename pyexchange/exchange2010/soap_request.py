@@ -515,6 +515,7 @@ def new_event(event):
         M.Items(
             T.CalendarItem(
                 T.Subject(event.subject),
+                T.Sensitivity(event.sensitivity),
                 T.Body(event.text_body or u'', BodyType="Text"),
                 )
         ),
@@ -539,8 +540,6 @@ def new_event(event):
         calendar_node.append(T.DateTimeCreated(convert_datetime_to_utc(event.created)))
 
     calendar_node.append(T.Location(event.location or u''))
-
-    calendar_node.append(T.Sensitivity(event.sensitivity))
 
     if event.required_attendees:
         calendar_node.append(resource_node(element=T.RequiredAttendees(), resources=event.required_attendees))
@@ -699,6 +698,11 @@ def update_item(event, updated_attributes, calendar_item_update_operation_type):
             update_property_node(field_uri="item:Subject", node_to_insert=T.Subject(event.subject))
         )
 
+    if u'sensitivity' in updated_attributes:
+        update_node.append(
+            update_property_node(field_uri="item:Sensitivity", node_to_insert=T.Sensitivity(event.sensitivity))
+        )
+
     if u'start' in updated_attributes:
         start = convert_datetime_to_utc(event.start)
 
@@ -768,11 +772,6 @@ def update_item(event, updated_attributes, calendar_item_update_operation_type):
         update_node.append(
             update_property_node(field_uri="calendar:IsAllDayEvent", node_to_insert=T.IsAllDayEvent(str(event.is_all_day).lower()))
         )
-
-    if u'sensitivity' in updated_attributes:
-        update_node.append(
-            update_property_node(field_uri="item:Sensitivity", node_to_insert=T.Sensitivity(event.sensitivity)
-        ))
 
     for attr in event.RECURRENCE_ATTRIBUTES:
         if attr in updated_attributes:
