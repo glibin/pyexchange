@@ -853,9 +853,9 @@ def create_attachment(parent_id, change_key, attachments):
     <Attachments>
       <t:FileAttachment>
         <t:Name>SomeFile</t:Name>
-        <t:Content>AQIDBAU=</t:Content>
-        <t:IsInline>false</t:IsInline>
         <t:ContentId>f_k1jtd87b1</t:ContentId>
+        <t:IsInline>false</t:IsInline>
+        <t:Content>AQIDBAU=</t:Content>
       </t:FileAttachment>
     </Attachments>
     </CreateAttachment>
@@ -864,14 +864,17 @@ def create_attachment(parent_id, change_key, attachments):
     for attachment in attachments:
         children_tags = [
             T.Name(attachment['name']),
-            T.Content(base64.standard_b64encode(attachment['content'])),
         ]
-        if 'is_inline' in attachment:
-            is_inline = 'true' if attachment['is_inline'] else 'false'
-            children_tags.append(T.IsInline(is_inline))
+
         if 'content_id' in attachment:
             content_id = str(attachment['content_id'])
             children_tags.append(T.ContentId(content_id))
+
+        if 'is_inline' in attachment:
+            is_inline = 'true' if attachment['is_inline'] else 'false'
+            children_tags.append(T.IsInline(is_inline))
+
+        children_tags.append(T.Content(base64.standard_b64encode(attachment['content'])))
 
         file_attachments.append(T.FileAttachment(*children_tags))
 
